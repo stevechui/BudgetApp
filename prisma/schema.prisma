@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum CategoryType {
+  CREDIT
+  DEBIT
+  TRANSFER
+}
+
+enum Direction {
+  CREDIT
+  DEBIT
+}
+
+model CategoryGroup {
+  id         Int        @id @default(autoincrement())
+  name       String     @unique
+  categories Category[]
+}
+
+model Category {
+  id           Int           @id @default(autoincrement())
+  name         String        @unique
+  type         CategoryType
+  groupId      Int
+  group        CategoryGroup @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  transactions Transaction[]
+
+  @@index([groupId])
+}
+
+model Transaction {
+  id            Int          @id @default(autoincrement())
+  /// Calendar date stored as UTC midnight
+  date          DateTime
+  description   String
+  /// Always positive; the sign comes from `direction`
+  amountCents   Int
+  direction     Direction
+  categoryId    Int
+  category      Category     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  importBatchId Int?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  createdAt     DateTime     @default(now())
+
+  @@index([date])
+  @@index([categoryId])
+  @@index([importBatchId])
+}
+
+model ImportBatch {
+  id           Int           @id @default(autoincrement())
+  fileName     String
+  createdAt    DateTime      @default(now())
+  transactions Transaction[]
+}
+
+model StatementTemplate {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  /// Text that identifies the bank's statements, matched case-insensitively
+  fingerprint String
+  /// JSON-encoded TemplateConfig (see lib/import/types.ts)
+  config      String
+  updatedAt   DateTime @updatedAt
+}

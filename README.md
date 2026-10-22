@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Budget Tracker
 
-## Getting Started
+A single-user web app for tracking income and expenses, built with Next.js (App Router, Cache Components), Prisma + SQLite, shadcn/ui and Recharts.
 
-First, run the development server:
+## Getting started
 
 ```bash
+npm install          # also generates the Prisma client
+npm run db:migrate   # creates prisma/dev.db and applies migrations
+npm run db:seed      # adds the default category groups and categories
+npm run seed:demo    # optional: ~6 months of sample transactions
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+`npm run db:reset` drops the database, re-applies migrations and re-runs the default seed.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The project `.npmrc` points npm at the public registry.
 
-## Learn More
+## How totals are calculated
 
-To learn more about Next.js, take a look at the following resources:
+Each category has a type, and each transaction has a direction (credit or debit).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Income** = credits minus debits in `CREDIT` categories.
+- **Expense** = debits minus credits in `DEBIT` categories, so a refund reduces spending.
+- **Transfer** categories (credit card payments, moving money between accounts) are excluded from all totals.
+- **Net** = income minus expense.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Pages
 
-## Deploy on Vercel
+| Route | Purpose |
+| --- | --- |
+| `/` | This month's totals, 6-month trend, recent transactions |
+| `/transactions` | Filterable list; add, edit, delete; change category inline |
+| `/import` | Extract transactions from a bank statement PDF, review and edit them, then import |
+| `/reports` | Weekly / monthly / quarterly charts, group breakdown, drill-down pie |
+| `/categories` | CRUD for categories (name, type, group) |
+| `/category-groups` | CRUD for category groups |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Statement import
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+PDFs are parsed entirely in the browser: the text layer is read with PDF.js, and pages without text are run through Tesseract OCR. Both run offline from assets that `npm install` copies into `public/` (see `scripts/copy-import-assets.mjs`).
+
+- Rows get category suggestions from past transactions with similar descriptions, and rows that match an existing transaction are flagged and unchecked.
+- If the statement shows opening/closing or running balances, the review screen checks that the rows add up.
+- Fix misreads in the extraction settings (column roles, date format, debit/credit mode, skip patterns), then save them as a template. Templates are picked automatically for statements containing their identifying text.
+- Each import is recorded as a batch and can be undone from the import history.
+
+A category that still has transactions can only be deleted after choosing another category to move them to. A group can only be deleted once it has no categories.
+
+## Tests
+
+```bash
+npm test
+```
+
+Unit tests cover the reporting math in `lib/report-math.ts` and the statement parser in `lib/import/`.
