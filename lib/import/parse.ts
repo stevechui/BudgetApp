@@ -1,9 +1,10 @@
-import { clusterColumns, findHeader, nearestColumn } from "./columns";
+import { clusterColumns, distance, findHeader, nearestColumn } from "./columns";
 import {
   centsToDecimal,
   findFullDates,
   numericDateParts,
   parseLeadingDate,
+  parseLooseMoney,
   parseMoney,
   resolveYear,
   type Money,
@@ -11,6 +12,7 @@ import {
 } from "./tokens";
 import type {
   Column,
+  ColumnRole,
   DateFormat,
   Direction,
   DraftRow,
@@ -93,6 +95,10 @@ type LineParts = {
   balance: Money[];
 };
 
+function isAmountRole(role: ColumnRole): role is "debit" | "credit" | "amount" | "balance" {
+  return role === "debit" || role === "credit" || role === "amount" || role === "balance";
+}
+
 function splitLine(words: Word[], columns: Column[]): LineParts {
   const parts: LineParts = { description: [], debit: [], credit: [], amount: [], balance: [] };
   const hasTextColumns = columns.some((c) => c.kind === "text");
@@ -100,12 +106,24 @@ function splitLine(words: Word[], columns: Column[]): LineParts {
     const money = parseMoney(w.text);
     if (money) {
       const role = nearestColumn(w, columns, "money")?.role ?? "amount";
-      if (role === "debit" || role === "credit" || role === "amount" || role === "balance") {
-        parts[role].push(money);
-      }
+      if (isAmountRole(role)) parts[role].push(money);
       continue;
     }
     const col = hasTextColumns ? nearestColumn(w, columns, "text") : null;
+    // Numbers without exactly two decimals ("45", "1,234.5") count as amounts only when
+    // they sit closer to an amount column than to any text column.
+    const moneyCol = nearestColumn(w, columns, "money");
+    if (
+      moneyCol &&
+      isAmountRole(moneyCol.role) &&
+      (col ? distance(w, moneyCol) < distance(w, col) : distance(w, moneyCol) === 0)
+    ) {
+      const loose = parseLooseMoney(w.text);
+      if (loose) {
+        parts[moneyCol.role].push(loose);
+        continue;
+      }
+    }
     if (!col || col.role === "description") parts.description.push(w);
   }
   return parts;

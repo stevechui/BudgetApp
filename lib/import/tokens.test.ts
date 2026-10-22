@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseLeadingDate, parseMoney, resolveYear } from "./tokens";
+import { parseLeadingDate, parseLooseMoney, parseMoney, resolveYear } from "./tokens";
 
 describe("parseMoney", () => {
   it.each([
@@ -16,6 +16,22 @@ describe("parseMoney", () => {
 
   it.each(["1234", "12.5", "#123", "(12.00", "1,23.00", "01/05"])("rejects %s", (token) => {
     expect(parseMoney(token)).toBeNull();
+  });
+});
+
+describe("parseLooseMoney", () => {
+  it.each([
+    ["45", 4500, false],
+    ["1,234", 123400, false],
+    ["12.5", 1250, false],
+    ["(7)", 700, true],
+    ["1,234.56", 123456, false],
+  ])("parses %s", (token, cents, negative) => {
+    expect(parseLooseMoney(token)).toMatchObject({ cents, negative });
+  });
+
+  it.each(["#123", "12.345", "abc"])("rejects %s", (token) => {
+    expect(parseLooseMoney(token)).toBeNull();
   });
 });
 

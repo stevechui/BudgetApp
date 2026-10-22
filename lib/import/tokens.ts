@@ -18,6 +18,26 @@ export function parseMoney(token: string): Money | null {
   };
 }
 
+const LOOSE_MONEY_RE = /^(\()?([-+])?\$?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?(\))?(-)?(CR|DR)?$/i;
+
+/**
+ * Like parseMoney but also accepts whole numbers and one decimal place ("45", "1,234.5").
+ * Only safe for tokens already known to sit in an amount column.
+ */
+export function parseLooseMoney(token: string): Money | null {
+  const strict = parseMoney(token);
+  if (strict) return strict;
+  const m = LOOSE_MONEY_RE.exec(token.trim());
+  if (!m) return null;
+  const [, open, sign, whole, frac = "", close, trailingMinus, suffix] = m;
+  if (Boolean(open) !== Boolean(close)) return null;
+  return {
+    cents: Number(whole.replace(/,/g, "")) * 100 + Number(frac.padEnd(2, "0")),
+    negative: Boolean(open) || sign === "-" || Boolean(trailingMinus),
+    suffix: suffix ? (suffix.toUpperCase() as "CR" | "DR") : null,
+  };
+}
+
 export function isMoney(token: string) {
   return parseMoney(token) !== null;
 }

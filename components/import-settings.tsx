@@ -29,6 +29,7 @@ import {
   MONEY_ROLES,
   TEXT_ROLES,
   type Column,
+  type ColumnKind,
   type ColumnRole,
   type DateFormat,
   type ParseResult,
@@ -93,9 +94,13 @@ export function ImportSettings({
   const [pending, startTransition] = useTransition();
   const template = templates.find((t) => t.id === templateId) ?? null;
 
-  function setRole(index: number, role: ColumnRole) {
-    const columns: Column[] = result.columns.map((c, i) => (i === index ? { ...c, role } : c));
+  function setColumn(index: number, patch: Partial<Column>) {
+    const columns: Column[] = result.columns.map((c, i) => (i === index ? { ...c, ...patch } : c));
     onConfigChange({ ...config, columns });
+  }
+
+  function setKind(index: number, kind: ColumnKind) {
+    setColumn(index, { kind, role: kind === "money" ? "amount" : "description" });
   }
 
   function addPattern() {
@@ -171,27 +176,41 @@ export function ImportSettings({
           ) : (
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {result.columns.map((c, i) => (
-                <div key={`${c.label}-${i}`} className="flex items-center gap-2 rounded-lg border p-2">
-                  <div className="min-w-0 flex-1">
+                <div key={`${c.label}-${i}`} className="grid gap-2 rounded-lg border p-2">
+                  <div className="min-w-0">
                     <div className="truncate text-sm font-medium" title={c.label}>
                       {c.label}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {c.kind === "money" ? "Amounts" : "Text"} · x {Math.round(c.x0)}–{Math.round(c.x1)}
+                      x {Math.round(c.x0)}–{Math.round(c.x1)}
                     </div>
                   </div>
-                  <Select value={c.role} onValueChange={(v) => setRole(i, v as ColumnRole)}>
-                    <SelectTrigger size="sm" className="w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(c.kind === "money" ? MONEY_ROLES : TEXT_ROLES).map((r) => (
-                        <SelectItem key={r} value={r}>
-                          {ROLE_LABELS[r]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2">
+                    <Select value={c.kind} onValueChange={(v) => setKind(i, v as ColumnKind)}>
+                      <SelectTrigger size="sm" className="w-28" aria-label="Column type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="text">Text</SelectItem>
+                        <SelectItem value="money">Amounts</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={c.role}
+                      onValueChange={(v) => setColumn(i, { role: v as ColumnRole })}
+                    >
+                      <SelectTrigger size="sm" className="flex-1" aria-label="Column role">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(c.kind === "money" ? MONEY_ROLES : TEXT_ROLES).map((r) => (
+                          <SelectItem key={r} value={r}>
+                            {ROLE_LABELS[r]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               ))}
             </div>

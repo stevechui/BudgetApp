@@ -102,6 +102,41 @@ describe("parseStatement with a header and debit/credit columns", () => {
   });
 });
 
+describe("column type overrides", () => {
+  const items = [
+    ...row(80, [[50, "Date"], [110, "Details"], [330, "Spent"], [420, "Received"], [500, "Balance"]]),
+    ...row(110, [[50, "01/03"], [110, "GROCERY 0456"], [345, "45"], [500, "955.00"]]),
+    ...row(125, [[50, "01/04"], [110, "PAYROLL"], [420, "1,200"], [500, "2,155.00"]]),
+  ];
+
+  it("treats unrecognized headers as text, so their whole-number amounts are missed", () => {
+    const result = parse(items);
+    expect(result.detectedColumns.map((c) => [c.label, c.kind])).toEqual([
+      ["Date", "text"],
+      ["Details", "text"],
+      ["Spent", "text"],
+      ["Received", "text"],
+      ["Balance", "money"],
+    ]);
+    expect(result.rows).toHaveLength(0);
+  });
+
+  it("reads whole-number amounts once the columns are switched to amounts", () => {
+    const columns = parse(items).detectedColumns.map((c) =>
+      c.label === "Spent"
+        ? { ...c, kind: "money" as const, role: "debit" as const }
+        : c.label === "Received"
+          ? { ...c, kind: "money" as const, role: "credit" as const }
+          : c,
+    );
+    const result = parse(items, { columns });
+    expect(result.rows.map((r) => [r.description, r.amount, r.direction])).toEqual([
+      ["GROCERY 0456", "45.00", "DEBIT"],
+      ["PAYROLL", "1200.00", "CREDIT"],
+    ]);
+  });
+});
+
 describe("parseStatement without a header", () => {
   it("reads a single signed amount column with month-name dates", () => {
     const items = [

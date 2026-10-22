@@ -92,7 +92,7 @@ export function clusterColumns(rowLines: { line: Line; skip: number }[]): Column
   }));
 }
 
-function distance(w: Word, c: Column) {
+export function distance(w: Word, c: Column) {
   return Math.max(0, c.x0 - w.x1, w.x0 - c.x1);
 }
 
