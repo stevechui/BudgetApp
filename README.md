@@ -52,7 +52,13 @@ A category that still has transactions can only be deleted after choosing anothe
 ## Tests
 
 ```bash
-npm test
+npm test             # unit + database tests (Vitest), about 2 seconds
+npm run test:e2e     # browser tests (Playwright), about 1 minute
 ```
 
-Unit tests cover the reporting math in `lib/report-math.ts` and the statement parser in `lib/import/`.
+`npm test` runs two Vitest projects:
+
+- **unit** (`lib/**/*.test.ts`): the reporting math in `lib/report-math.ts` and the statement parser in `lib/import/`.
+- **db** (`tests/db/`): every Server Action and read query against a real SQLite database. Each test file gets its own freshly migrated database in the system temp folder, so `prisma/dev.db` is never touched.
+
+`npm run test:e2e` builds the app, starts it on port 3200 against a separate `prisma/e2e.db` (recreated and seeded with the default categories on every run), and clicks through the create, edit and delete flows in Chromium. Install the browser once with `npx playwright install chromium`. Failure traces and screenshots go to `playwright-report/`.
