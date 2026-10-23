@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { PencilIcon } from "lucide-react";
 import { toast } from "sonner";
+import type { AccountOption } from "@/components/account-select";
 import { CategorySelect, type CategoryOption } from "@/components/category-select";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { Money } from "@/components/money";
@@ -21,15 +22,18 @@ import { deleteTransaction, setTransactionCategory } from "@/lib/actions/transac
 export type TransactionRow = TransactionValue & {
   amountCents: number;
   displayDate: string;
+  accountName: string;
   isTransfer: boolean;
 };
 
 export function TransactionsTable({
   rows,
   categories,
+  accounts,
 }: {
   rows: TransactionRow[];
   categories: CategoryOption[];
+  accounts: AccountOption[];
 }) {
   return (
     <div className="rounded-xl border bg-background">
@@ -38,6 +42,7 @@ export function TransactionsTable({
           <TableRow>
             <TableHead className="w-32">Date</TableHead>
             <TableHead>Description</TableHead>
+            <TableHead className="w-44">Account</TableHead>
             <TableHead className="w-60">Category</TableHead>
             <TableHead className="w-32 text-right">Amount</TableHead>
             <TableHead className="w-24" />
@@ -46,7 +51,7 @@ export function TransactionsTable({
         <TableBody>
           {rows.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+              <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                 No transactions found.
               </TableCell>
             </TableRow>
@@ -55,6 +60,9 @@ export function TransactionsTable({
             <TableRow key={t.id}>
               <TableCell className="text-muted-foreground">{t.displayDate}</TableCell>
               <TableCell className="max-w-72 truncate font-medium">{t.description}</TableCell>
+              <TableCell className="max-w-44 truncate text-muted-foreground">
+                {t.accountName}
+              </TableCell>
               <TableCell>
                 <InlineCategory transaction={t} categories={categories} />
               </TableCell>
@@ -70,6 +78,7 @@ export function TransactionsTable({
                   <TransactionForm
                     transaction={t}
                     categories={categories}
+                    accounts={accounts}
                     trigger={
                       <Button variant="ghost" size="icon-sm" aria-label="Edit">
                         <PencilIcon />

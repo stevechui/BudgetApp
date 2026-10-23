@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { AccountSelect, type AccountOption } from "@/components/account-select";
 import { CategorySelect, type CategoryOption } from "@/components/category-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ import {
 export type FilterValues = {
   from: string;
   to: string;
+  account: string;
   group: string;
   category: string;
   direction: string;
@@ -29,10 +31,12 @@ export function TransactionFilters({
   initial,
   categories,
   groups,
+  accounts,
 }: {
   initial: FilterValues;
   categories: CategoryOption[];
   groups: { id: number; name: string }[];
+  accounts: AccountOption[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -50,7 +54,15 @@ export function TransactionFilters({
   }
 
   function clear() {
-    const empty = { from: "", to: "", group: ALL, category: ALL, direction: ALL, q: "" };
+    const empty = {
+      from: "",
+      to: "",
+      account: ALL,
+      group: ALL,
+      category: ALL,
+      direction: ALL,
+      q: "",
+    };
     setValues(empty);
     apply(empty);
   }
@@ -66,13 +78,21 @@ export function TransactionFilters({
         e.preventDefault();
         apply(values);
       }}
-      className="grid grid-cols-2 gap-3 rounded-xl border bg-background p-4 md:grid-cols-4 lg:grid-cols-7"
+      className="grid grid-cols-2 gap-3 rounded-xl border bg-background p-4 md:grid-cols-4"
     >
       <Field label="From">
         <Input type="date" value={values.from} onChange={(e) => set("from", e.target.value)} />
       </Field>
       <Field label="To">
         <Input type="date" value={values.to} onChange={(e) => set("to", e.target.value)} />
+      </Field>
+      <Field label="Account">
+        <AccountSelect
+          accounts={accounts}
+          value={values.account}
+          onChange={(v) => set("account", v)}
+          allLabel="All accounts"
+        />
       </Field>
       <Field label="Group">
         <Select

@@ -18,6 +18,27 @@ enum Direction {
   DEBIT
 }
 
+enum AccountType {
+  CHECKING
+  SAVINGS
+  CREDIT_CARD
+  CASH
+  INVESTMENT
+  OTHER
+}
+
+model Account {
+  id                  Int                 @id @default(autoincrement())
+  name                String              @unique
+  institution         String?
+  type                AccountType
+  /// Signed: positive for money you have, negative for money owed (e.g. a credit card)
+  openingBalanceCents Int                 @default(0)
+  transactions        Transaction[]
+  templates           StatementTemplate[]
+  createdAt           DateTime            @default(now())
+}
+
 model CategoryGroup {
   id         Int        @id @default(autoincrement())
   name       String     @unique
@@ -45,12 +66,15 @@ model Transaction {
   direction     Direction
   categoryId    Int
   category      Category     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  accountId     Int
+  account       Account      @relation(fields: [accountId], references: [id], onDelete: Restrict)
   importBatchId Int?
   importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   createdAt     DateTime     @default(now())
 
   @@index([date])
   @@index([categoryId])
+  @@index([accountId])
   @@index([importBatchId])
 }
 
@@ -68,5 +92,8 @@ model StatementTemplate {
   fingerprint String
   /// JSON-encoded TemplateConfig (see lib/import/types.ts)
   config      String
+  /// Account pre-selected when this template matches a statement
+  accountId   Int?
+  account     Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
   updatedAt   DateTime @updatedAt
 }

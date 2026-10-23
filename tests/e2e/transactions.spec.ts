@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { expectToast, open, pickCategory, row, unique } from "./helpers";
+import { expectToast, open, pickAccount, pickCategory, row, unique } from "./helpers";
 
 async function search(page: Page, text: string) {
   await open(page, `/transactions?q=${encodeURIComponent(text)}`);
@@ -16,6 +16,7 @@ test.describe("transactions", () => {
     await dialog.getByLabel("Date").fill("2026-03-15");
     await dialog.getByLabel("Amount").fill("42.50");
     await dialog.getByLabel("Description").fill(description);
+    await pickAccount(page, dialog);
     await pickCategory(page, dialog.getByRole("button", { name: "Select a category" }), "Groceries");
     await expect(dialog.getByRole("tab", { name: /Debit/ })).toHaveAttribute("aria-selected", "true");
     await dialog.getByRole("button", { name: "Save" }).click();
@@ -31,6 +32,7 @@ test.describe("transactions", () => {
     await expect(tx).toContainText("Mar 15, 2026");
     await expect(tx).toContainText("-$42.50");
     await expect(tx).toContainText("Groceries");
+    await expect(tx).toContainText("Main Account");
 
     // Update through the edit dialog
     await tx.getByRole("button", { name: "Edit" }).click();
@@ -71,6 +73,7 @@ test.describe("transactions", () => {
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Amount").fill("abc");
     await dialog.getByLabel("Description").fill("Bad amount");
+    await pickAccount(page, dialog);
     await pickCategory(page, dialog.getByRole("button", { name: "Select a category" }), "Groceries");
     await dialog.getByRole("button", { name: "Save" }).click();
     await expectToast(page, "Enter a positive amount, e.g. 12.34");
@@ -91,6 +94,7 @@ test.describe("transactions", () => {
       await open(page, "/transactions");
       await page.getByRole("button", { name: "Add transaction" }).click();
       const dialog = page.getByRole("dialog");
+      await pickAccount(page, dialog);
       await pickCategory(page, dialog.getByRole("button", { name: "Select a category" }), category);
       await dialog.getByRole("tab", { name: new RegExp(direction) }).click();
       await dialog.getByLabel("Date").fill(date);
@@ -111,5 +115,24 @@ test.describe("transactions", () => {
 
     await page.getByRole("button", { name: "Clear" }).click();
     await expect(page).toHaveURL(/\/transactions$/);
+  });
+
+  test("filters by account", async ({ page }) => {
+    const description = unique("Account filter");
+    await open(page, "/transactions");
+    await page.getByRole("button", { name: "Add transaction" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Amount").fill("3.00");
+    await dialog.getByLabel("Description").fill(description);
+    await pickAccount(page, dialog);
+    await pickCategory(page, dialog.getByRole("button", { name: "Select a category" }), "Groceries");
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await expectToast(page, "Transaction added");
+
+    await page.getByPlaceholder("Description").fill(description);
+    await pickAccount(page, page.locator("form").first(), "Main Account");
+    await page.getByRole("button", { name: "Apply" }).click();
+    await expect(page).toHaveURL(/account=\d+/);
+    await expect(row(page, description)).toBeVisible();
   });
 });

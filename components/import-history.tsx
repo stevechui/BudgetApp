@@ -16,6 +16,7 @@ export type ImportBatchRow = {
   fileName: string;
   createdAt: string;
   count: number;
+  accountName: string | null;
 };
 
 export function ImportHistory({ batches }: { batches: ImportBatchRow[] }) {
@@ -28,6 +29,7 @@ export function ImportHistory({ batches }: { batches: ImportBatchRow[] }) {
           <TableHeader>
             <TableRow>
               <TableHead>File</TableHead>
+              <TableHead className="w-48">Account</TableHead>
               <TableHead className="w-48">Imported</TableHead>
               <TableHead className="w-32 text-right">Transactions</TableHead>
               <TableHead className="w-16" />
@@ -37,6 +39,7 @@ export function ImportHistory({ batches }: { batches: ImportBatchRow[] }) {
             {batches.map((b) => (
               <TableRow key={b.id}>
                 <TableCell className="font-medium">{b.fileName}</TableCell>
+                <TableCell className="text-muted-foreground">{b.accountName ?? "—"}</TableCell>
                 <TableCell className="text-muted-foreground">{b.createdAt}</TableCell>
                 <TableCell className="text-right tabular-nums">{b.count}</TableCell>
                 <TableCell>

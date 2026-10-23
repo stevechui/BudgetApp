@@ -7,6 +7,8 @@ test("dashboard renders its summary and recent transactions", async ({ page }) =
   await expect(page.getByText(/^Income · /)).toBeVisible();
   await expect(page.getByText("Last 6 months")).toBeVisible();
   await expect(page.getByText("Recent transactions")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Manage" })).toBeVisible();
+  await expect(page.getByText(/^Net worth /)).toBeVisible();
 });
 
 test("reports switch between weekly, monthly and quarterly", async ({ page }) => {
@@ -31,6 +33,8 @@ test("navigation links reach every page", async ({ page }) => {
   await open(page, "/");
   for (const [link, heading] of [
     ["Transactions", "Transactions"],
+    ["Accounts", "Accounts"],
+    ["Import", "Import statement"],
     ["Reports", "Reports"],
     ["Categories", "Categories"],
     ["Category Groups", "Category Groups"],

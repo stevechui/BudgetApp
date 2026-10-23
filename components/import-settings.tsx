@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { RotateCcwIcon, SaveIcon, Trash2Icon, XIcon } from "lucide-react";
 import { toast } from "sonner";
+import { AccountSelect, type AccountOption } from "@/components/account-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +42,7 @@ export type ImportTemplate = {
   id: number;
   name: string;
   fingerprint: string;
+  accountId: number | null;
   config: TemplateConfig;
 };
 
@@ -77,6 +79,8 @@ export function ImportSettings({
   onTemplateSelect,
   onTemplateIdChange,
   suggestedFingerprint,
+  accounts,
+  accountId,
 }: {
   result: ParseResult;
   config: TemplateConfig;
@@ -89,6 +93,9 @@ export function ImportSettings({
   /** Records a saved or deleted template without changing the current settings */
   onTemplateIdChange: (id: number | null) => void;
   suggestedFingerprint: string;
+  accounts: AccountOption[];
+  /** The account chosen for this import; the default when saving a template */
+  accountId: number | null;
 }) {
   const [pattern, setPattern] = useState("");
   const [pending, startTransition] = useTransition();
@@ -154,6 +161,8 @@ export function ImportSettings({
               config={config}
               template={template}
               suggestedFingerprint={suggestedFingerprint}
+              accounts={accounts}
+              accountId={accountId}
               onSaved={onTemplateIdChange}
             />
             {template && (
@@ -318,33 +327,47 @@ export function ImportSettings({
   );
 }
 
+const NO_ACCOUNT = "all";
+
 function TemplateDialog({
   config,
   template,
   suggestedFingerprint,
+  accounts,
+  accountId,
   onSaved,
 }: {
   config: TemplateConfig;
   template: ImportTemplate | null;
   suggestedFingerprint: string;
+  accounts: AccountOption[];
+  accountId: number | null;
   onSaved: (id: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [fingerprint, setFingerprint] = useState("");
+  const [account, setAccount] = useState(NO_ACCOUNT);
   const [pending, startTransition] = useTransition();
 
   function onOpenChange(next: boolean) {
     if (next) {
       setName(template?.name ?? "");
       setFingerprint(template?.fingerprint ?? suggestedFingerprint);
+      const initial = accountId ?? template?.accountId;
+      setAccount(initial ? String(initial) : NO_ACCOUNT);
     }
     setOpen(next);
   }
 
   function submit(asNew: boolean) {
     startTransition(async () => {
-      const input = { name, fingerprint, config };
+      const input = {
+        name,
+        fingerprint,
+        config,
+        accountId: account === NO_ACCOUNT ? null : Number(account),
+      };
       if (template && !asNew) {
         const res = await updateTemplate(template.id, input);
         if (!res.ok) return void toast.error(res.error);
@@ -399,6 +422,16 @@ function TemplateDialog({
               value={fingerprint}
               onChange={(e) => setFingerprint(e.target.value)}
               placeholder="Text printed on every statement, e.g. the bank's name"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="template-account">Import into account</Label>
+            <AccountSelect
+              id="template-account"
+              accounts={accounts}
+              value={account}
+              onChange={setAccount}
+              allLabel="No default account"
             />
           </div>
           <DialogFooter>

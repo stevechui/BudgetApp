@@ -7,7 +7,7 @@ import { TransactionForm } from "@/components/transaction-form";
 import { TransactionsTable } from "@/components/transactions-table";
 import { Button } from "@/components/ui/button";
 import { centsToInput, dateToInput, formatDay } from "@/lib/format";
-import { getCategories, getGroups, getTransactions } from "@/lib/queries";
+import { getAccountOptions, getCategories, getGroups, getTransactions } from "@/lib/queries";
 
 type SearchParams = Awaited<PageProps<"/transactions">["searchParams"]>;
 
@@ -41,10 +41,11 @@ async function loadCategoryOptions() {
 }
 
 async function AddButton() {
-  const categories = await loadCategoryOptions();
+  const [categories, accounts] = await Promise.all([loadCategoryOptions(), getAccountOptions()]);
   return (
     <TransactionForm
       categories={categories}
+      accounts={accounts}
       trigger={
         <Button>
           <PlusIcon /> Add transaction
@@ -61,6 +62,7 @@ async function TransactionsContent({
   const filters = {
     from: str(sp.from),
     to: str(sp.to),
+    account: str(sp.account) || "all",
     group: str(sp.group) || "all",
     category: str(sp.category) || "all",
     direction: str(sp.direction) || "all",
@@ -69,12 +71,14 @@ async function TransactionsContent({
   const direction =
     filters.direction === "CREDIT" || filters.direction === "DEBIT" ? filters.direction : undefined;
 
-  const [categories, groups, result] = await Promise.all([
+  const [categories, groups, accounts, result] = await Promise.all([
     loadCategoryOptions(),
     getGroups(),
+    getAccountOptions(),
     getTransactions({
       from: filters.from || undefined,
       to: filters.to || undefined,
+      accountId: Number(filters.account) || undefined,
       groupId: Number(filters.group) || undefined,
       categoryId: Number(filters.category) || undefined,
       direction,
@@ -97,9 +101,11 @@ async function TransactionsContent({
         initial={filters}
         categories={categories}
         groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+        accounts={accounts}
       />
       <TransactionsTable
         categories={categories}
+        accounts={accounts}
         rows={result.rows.map((t) => ({
           id: t.id,
           date: dateToInput(t.date),
@@ -109,6 +115,8 @@ async function TransactionsContent({
           amountCents: t.amountCents,
           direction: t.direction,
           categoryId: t.categoryId,
+          accountId: t.accountId,
+          accountName: t.account.name,
           isTransfer: t.category.type === "TRANSFER",
         }))}
       />

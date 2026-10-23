@@ -17,12 +17,21 @@ import { handleDbError, revalidateAll } from "./shared";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
-/** Existing transactions in a date range, used to flag rows that were already imported. */
-export async function findPossibleDuplicates(from: string, to: string): Promise<ExistingTransaction[]> {
-  const range = z.object({ from: day, to: day }).safeParse({ from, to });
+/** Existing transactions in an account and date range, used to flag rows that were already imported. */
+export async function findPossibleDuplicates(
+  from: string,
+  to: string,
+  accountId: number,
+): Promise<ExistingTransaction[]> {
+  const range = z
+    .object({ from: day, to: day, accountId: z.number().int().positive() })
+    .safeParse({ from, to, accountId });
   if (!range.success) return [];
   const rows = await db.transaction.findMany({
-    where: { date: { gte: inputToDate(range.data.from), lte: inputToDate(range.data.to) } },
+    where: {
+      accountId: range.data.accountId,
+      date: { gte: inputToDate(range.data.from), lte: inputToDate(range.data.to) },
+    },
     select: { id: true, date: true, description: true, amountCents: true, direction: true },
   });
   return rows.map((r) => ({ ...r, date: dateToInput(r.date) }));
@@ -40,13 +49,14 @@ export async function importTransactions(
       error: typeof index === "number" ? `Row ${index + 1}: ${issue.message}` : (issue?.message ?? "Invalid input"),
     };
   }
-  const { fileName, rows } = parsed.data;
+  const { fileName, accountId, rows } = parsed.data;
   try {
     const batch = await db.$transaction(async (tx) => {
       const created = await tx.importBatch.create({ data: { fileName } });
       await tx.transaction.createMany({
         data: rows.map(({ amount, date, ...rest }) => ({
           ...rest,
+          accountId,
           amountCents: amount,
           date: inputToDate(date),
           importBatchId: created.id,
@@ -58,7 +68,7 @@ export async function importTransactions(
     return { ok: true, batchId: batch.id, count: rows.length };
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2003") {
-      return { ok: false, error: "One of the selected categories no longer exists" };
+      return { ok: false, error: "The selected account or one of the categories no longer exists" };
     }
     console.error(e);
     return { ok: false, error: "Something went wrong" };

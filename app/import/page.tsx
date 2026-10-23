@@ -24,8 +24,15 @@ export default function ImportPage() {
 }
 
 async function ImporterContent() {
-  const { categories, templates, history } = await getImportContext();
-  return <StatementImporter categories={categories} templates={templates} history={history} />;
+  const { accounts, categories, templates, history } = await getImportContext();
+  return (
+    <StatementImporter
+      accounts={accounts}
+      categories={categories}
+      templates={templates}
+      history={history}
+    />
+  );
 }
 
 async function HistoryContent() {
@@ -37,6 +44,7 @@ async function HistoryContent() {
         fileName: b.fileName,
         createdAt: b.createdAt.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }),
         count: b._count.transactions,
+        accountName: b.accountName,
       }))}
     />
   );

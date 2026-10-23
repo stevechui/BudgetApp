@@ -5,6 +5,7 @@ import type { Direction, Prisma } from "@/lib/generated/prisma/client";
 import { inputToDate } from "@/lib/format";
 import { normalizeDescription } from "@/lib/import/suggest";
 import { templateConfigSchema } from "@/lib/validation";
+import { withBalances } from "@/lib/account-math";
 
 export async function getGroups() {
   await connection();
@@ -22,9 +23,40 @@ export async function getCategories() {
   });
 }
 
+/** Accounts ordered by name, each with its current balance and transaction count. */
+export async function getAccounts() {
+  await connection();
+  const [accounts, totals] = await Promise.all([
+    db.account.findMany({ orderBy: { name: "asc" } }),
+    db.transaction.groupBy({
+      by: ["accountId", "direction"],
+      _sum: { amountCents: true },
+      _count: { _all: true },
+    }),
+  ]);
+  return withBalances(
+    accounts,
+    totals.map((t) => ({
+      accountId: t.accountId,
+      direction: t.direction,
+      amountCents: t._sum.amountCents ?? 0,
+      count: t._count._all,
+    })),
+  );
+}
+
+export async function getAccountOptions() {
+  await connection();
+  return db.account.findMany({
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, type: true },
+  });
+}
+
 export type TransactionFilters = {
   from?: string;
   to?: string;
+  accountId?: number;
   categoryId?: number;
   groupId?: number;
   direction?: Direction;
@@ -43,6 +75,7 @@ export async function getTransactions(filters: TransactionFilters) {
       ...(filters.to && { lte: inputToDate(filters.to) }),
     };
   }
+  if (filters.accountId) where.accountId = filters.accountId;
   if (filters.categoryId) where.categoryId = filters.categoryId;
   if (filters.groupId) where.category = { groupId: filters.groupId };
   if (filters.direction) where.direction = filters.direction;
@@ -53,7 +86,7 @@ export async function getTransactions(filters: TransactionFilters) {
     db.transaction.findMany({
       where,
       orderBy: [{ date: "desc" }, { id: "desc" }],
-      include: { category: { include: { group: true } } },
+      include: { category: { include: { group: true } }, account: true },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
     }),
@@ -65,7 +98,8 @@ export async function getTransactions(filters: TransactionFilters) {
 /** Categories, saved templates and categorization history for the statement importer. */
 export async function getImportContext() {
   await connection();
-  const [categories, templates, history] = await Promise.all([
+  const [accounts, categories, templates, history] = await Promise.all([
+    getAccountOptions(),
     getCategories(),
     db.statementTemplate.findMany({ orderBy: { name: "asc" } }),
     db.transaction.findMany({
@@ -82,6 +116,7 @@ export async function getImportContext() {
   }
 
   return {
+    accounts,
     categories: categories.map((c) => ({
       id: c.id,
       name: c.name,
@@ -95,7 +130,15 @@ export async function getImportContext() {
       } catch {}
       const config = templateConfigSchema.safeParse(raw);
       return config.success
-        ? [{ id: t.id, name: t.name, fingerprint: t.fingerprint, config: config.data }]
+        ? [
+            {
+              id: t.id,
+              name: t.name,
+              fingerprint: t.fingerprint,
+              accountId: t.accountId,
+              config: config.data,
+            },
+          ]
         : [];
     }),
     history: [...historyMap.entries()],
@@ -104,11 +147,18 @@ export async function getImportContext() {
 
 export async function getImportBatches() {
   await connection();
-  return db.importBatch.findMany({
+  const batches = await db.importBatch.findMany({
     orderBy: { createdAt: "desc" },
     take: 20,
-    include: { _count: { select: { transactions: true } } },
+    include: {
+      _count: { select: { transactions: true } },
+      transactions: { take: 1, select: { account: { select: { name: true } } } },
+    },
   });
+  return batches.map(({ transactions, ...b }) => ({
+    ...b,
+    accountName: transactions[0]?.account.name ?? null,
+  }));
 }
 
 export async function getRecentTransactions(take = 10) {

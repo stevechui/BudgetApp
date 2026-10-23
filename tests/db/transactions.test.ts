@@ -14,26 +14,28 @@ import {
   seedBasics,
 } from "./helpers";
 
-const valid = (categoryId: number) => ({
+const valid = (categoryId: number, accountId: number) => ({
   date: "2026-03-15",
   description: "Safeway",
   amount: "42.50",
   direction: "DEBIT" as const,
   categoryId,
+  accountId,
 });
 
 describe("createTransaction", () => {
   it("stores the amount in cents and the date as UTC midnight", async () => {
-    const { groceries } = await seedBasics();
-    expect(await createTransaction({ ...valid(groceries.id), description: "  Safeway  " })).toEqual({
-      ok: true,
-    });
+    const { groceries, card } = await seedBasics();
+    expect(
+      await createTransaction({ ...valid(groceries.id, card.id), description: "  Safeway  " }),
+    ).toEqual({ ok: true });
     const [tx] = await db.transaction.findMany();
     expect(tx).toMatchObject({
       description: "Safeway",
       amountCents: 4250,
       direction: "DEBIT",
       categoryId: groceries.id,
+      accountId: card.id,
       importBatchId: null,
     });
     expect(tx.date.toISOString()).toBe("2026-03-15T00:00:00.000Z");
@@ -46,8 +48,8 @@ describe("createTransaction", () => {
     ["1000", 100000],
     ["0.01", 1],
   ])("converts %s to %i cents", async (amount, cents) => {
-    const { groceries } = await seedBasics();
-    await createTransaction({ ...valid(groceries.id), amount });
+    const { groceries, checking } = await seedBasics();
+    await createTransaction({ ...valid(groceries.id, checking.id), amount });
     expect((await db.transaction.findFirstOrThrow()).amountCents).toBe(cents);
   });
 
@@ -59,8 +61,11 @@ describe("createTransaction", () => {
     ["abc", "Enter a positive amount, e.g. 12.34"],
     ["", "Enter a positive amount, e.g. 12.34"],
   ])("rejects amount %j", async (amount, error) => {
-    const { groceries } = await seedBasics();
-    expect(await createTransaction({ ...valid(groceries.id), amount })).toEqual({ ok: false, error });
+    const { groceries, checking } = await seedBasics();
+    expect(await createTransaction({ ...valid(groceries.id, checking.id), amount })).toEqual({
+      ok: false,
+      error,
+    });
     expect(await db.transaction.count()).toBe(0);
     expectNotRevalidated();
   });
@@ -69,15 +74,23 @@ describe("createTransaction", () => {
     [{ date: "03/15/2026" }, "Enter a valid date"],
     [{ description: "   " }, "Description is required"],
     [{ direction: "SIDEWAYS" }, "Pick credit or debit"],
+    [{ accountId: "" }, "Pick an account"],
   ])("rejects %j", async (override, error) => {
-    const { groceries } = await seedBasics();
-    const res = await createTransaction({ ...valid(groceries.id), ...override } as never);
+    const { groceries, checking } = await seedBasics();
+    const res = await createTransaction({ ...valid(groceries.id, checking.id), ...override } as never);
     expect(res).toEqual({ ok: false, error });
   });
 
   it("rejects a category that does not exist", async () => {
-    await seedBasics();
-    const res = await createTransaction(valid(999));
+    const { checking } = await seedBasics();
+    const res = await createTransaction(valid(999, checking.id));
+    expect(res.ok).toBe(false);
+    expect(await db.transaction.count()).toBe(0);
+  });
+
+  it("rejects an account that does not exist", async () => {
+    const { groceries } = await seedBasics();
+    const res = await createTransaction(valid(groceries.id, 999));
     expect(res.ok).toBe(false);
     expect(await db.transaction.count()).toBe(0);
   });
@@ -85,13 +98,14 @@ describe("createTransaction", () => {
 
 describe("updateTransaction", () => {
   it("updates every field", async () => {
-    const { groceries, salary } = await seedBasics();
+    const { groceries, salary, checking, card } = await seedBasics();
     const tx = await makeTransaction({
       date: "2026-03-15",
       description: "Safeway",
       amountCents: 4250,
       direction: "DEBIT",
       categoryId: groceries.id,
+      accountId: card.id,
     });
     const res = await updateTransaction(tx.id, {
       date: "2026-04-01",
@@ -99,6 +113,7 @@ describe("updateTransaction", () => {
       amount: "2500",
       direction: "CREDIT",
       categoryId: salary.id,
+      accountId: checking.id,
     });
     expect(res).toEqual({ ok: true });
     const updated = await db.transaction.findUniqueOrThrow({ where: { id: tx.id } });
@@ -107,13 +122,14 @@ describe("updateTransaction", () => {
       amountCents: 250000,
       direction: "CREDIT",
       categoryId: salary.id,
+      accountId: checking.id,
     });
     expect(updated.date.toISOString()).toBe("2026-04-01T00:00:00.000Z");
     expectRevalidated();
   });
 
   it("leaves the transaction unchanged on invalid input", async () => {
-    const { groceries } = await seedBasics();
+    const { groceries, checking } = await seedBasics();
     const tx = await makeTransaction({
       date: "2026-03-15",
       description: "Safeway",
@@ -121,14 +137,14 @@ describe("updateTransaction", () => {
       direction: "DEBIT",
       categoryId: groceries.id,
     });
-    const res = await updateTransaction(tx.id, { ...valid(groceries.id), amount: "-1" });
+    const res = await updateTransaction(tx.id, { ...valid(groceries.id, checking.id), amount: "-1" });
     expect(res.ok).toBe(false);
     expect((await db.transaction.findUniqueOrThrow({ where: { id: tx.id } })).amountCents).toBe(4250);
   });
 
   it("reports a missing transaction", async () => {
-    const { groceries } = await seedBasics();
-    expect(await updateTransaction(999, valid(groceries.id))).toEqual({
+    const { groceries, checking } = await seedBasics();
+    expect(await updateTransaction(999, valid(groceries.id, checking.id))).toEqual({
       ok: false,
       error: "That transaction no longer exists",
     });
@@ -205,7 +221,14 @@ describe("getTransactions", () => {
       ["2026-02-28", "Safeway", 7000, "DEBIT", f.groceries.id],
     ] as const;
     for (const [date, description, amountCents, direction, categoryId] of rows) {
-      await makeTransaction({ date, description, amountCents, direction, categoryId });
+      await makeTransaction({
+        date,
+        description,
+        amountCents,
+        direction,
+        categoryId,
+        accountId: description === "Sushi place" ? f.card.id : f.checking.id,
+      });
     }
     return f;
   }
@@ -224,6 +247,15 @@ describe("getTransactions", () => {
       "Paycheck 2026-01-01",
     ]);
     expect(r.rows[0].category.group.name).toBe("Food");
+    expect(r.rows[0].account.name).toBe("Checking");
+  });
+
+  it("filters by account", async () => {
+    const f = await fixture();
+    const card = await getTransactions({ accountId: f.card.id });
+    expect(descriptions(card)).toEqual(["Sushi place 2026-02-10"]);
+    expect(card.rows[0].account.name).toBe("Visa");
+    expect((await getTransactions({ accountId: f.checking.id })).total).toBe(4);
   });
 
   it("filters by an inclusive date range", async () => {
@@ -268,7 +300,7 @@ describe("getTransactions", () => {
   });
 
   it(`pages ${PAGE_SIZE} rows at a time`, async () => {
-    const { groceries } = await seedBasics();
+    const { groceries, checking } = await seedBasics();
     await db.transaction.createMany({
       data: Array.from({ length: 120 }, (_, i) => ({
         date: new Date(Date.UTC(2026, 0, 1) + i * 86_400_000),
@@ -276,6 +308,7 @@ describe("getTransactions", () => {
         amountCents: 100,
         direction: "DEBIT" as const,
         categoryId: groceries.id,
+        accountId: checking.id,
       })),
     });
 

@@ -10,7 +10,8 @@ const SEED: { group: string; type: CategoryType; categories: string[] }[] = [
       "Bonus",
       "Interest",
       "Dividends",
-      "Freelance",
+      "Rental Income",
+      "Investment Income",
       "Refunds & Reimbursements",
       "Other Income",
     ],
@@ -30,9 +31,9 @@ const SEED: { group: string; type: CategoryType; categories: string[] }[] = [
     group: "Utilities",
     type: "DEBIT",
     categories: [
-      "Electricity",
-      "Gas/Heating",
+      "Gas/Electricity",
       "Water & Sewer",
+      "Drinking Water",
       "Internet",
       "Mobile Phone",
       "Trash",
@@ -121,11 +122,17 @@ async function main() {
         });
       }
     }
-    const [groups, cats] = await Promise.all([
+    await db.account.upsert({
+      where: { name: "Main Account" },
+      update: {},
+      create: { name: "Main Account", type: "CHECKING" },
+    });
+    const [groups, cats, accounts] = await Promise.all([
       db.categoryGroup.count(),
       db.category.count(),
+      db.account.count(),
     ]);
-    console.log(`Seeded: ${groups} category groups, ${cats} categories`);
+    console.log(`Seeded: ${groups} category groups, ${cats} categories, ${accounts} accounts`);
   } finally {
     await db.$disconnect();
   }

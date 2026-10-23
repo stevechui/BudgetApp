@@ -25,6 +25,11 @@ export async function choose(page: Page, trigger: Locator, option: string) {
   await page.getByRole("option", { name: option, exact: true }).click();
 }
 
+/** Pick an account in a dialog's account select. */
+export async function pickAccount(page: Page, scope: Locator, name = "Main Account") {
+  await choose(page, scope.getByRole("combobox", { name: "Account", exact: true }), name);
+}
+
 /** Pick a category from the searchable category picker. */
 export async function pickCategory(page: Page, trigger: Locator, name: string) {
   await trigger.click();

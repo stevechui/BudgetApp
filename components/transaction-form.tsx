@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { AccountSelect, type AccountOption } from "@/components/account-select";
 import { CategorySelect, type CategoryOption } from "@/components/category-select";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +26,10 @@ export type TransactionValue = {
   amount: string;
   direction: "CREDIT" | "DEBIT";
   categoryId: number;
+  accountId: number;
 };
+
+const LAST_ACCOUNT_KEY = "budget:lastAccountId";
 
 function today() {
   const d = new Date();
@@ -33,13 +37,21 @@ function today() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+function lastUsedAccount(accounts: AccountOption[]) {
+  if (typeof window === "undefined") return undefined;
+  const id = Number(window.localStorage.getItem(LAST_ACCOUNT_KEY));
+  return accounts.some((a) => a.id === id) ? id : undefined;
+}
+
 export function TransactionForm({
   transaction,
   categories,
+  accounts,
   trigger,
 }: {
   transaction?: TransactionValue;
   categories: CategoryOption[];
+  accounts: AccountOption[];
   trigger: React.ReactNode;
 }) {
   const initial = (): TransactionInput => ({
@@ -48,6 +60,10 @@ export function TransactionForm({
     amount: transaction?.amount ?? "",
     direction: transaction?.direction ?? "DEBIT",
     categoryId: transaction?.categoryId ?? 0,
+    accountId:
+      transaction?.accountId ??
+      lastUsedAccount(accounts) ??
+      (accounts.length === 1 ? accounts[0].id : 0),
   });
   const [open, setOpen] = useState(false);
   const [values, setValues] = useState(initial);
@@ -76,6 +92,10 @@ export function TransactionForm({
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!values.accountId) {
+      toast.error("Pick an account");
+      return;
+    }
     if (!values.categoryId) {
       toast.error("Pick a category");
       return;
@@ -85,6 +105,7 @@ export function TransactionForm({
         ? await updateTransaction(transaction.id, values)
         : await createTransaction(values);
       if (res.ok) {
+        window.localStorage.setItem(LAST_ACCOUNT_KEY, String(values.accountId));
         toast.success(transaction ? "Transaction updated" : "Transaction added");
         setOpen(false);
       } else {
@@ -140,6 +161,15 @@ export function TransactionForm({
               value={values.description}
               onChange={(e) => set("description", e.target.value)}
               required
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="tx-account">Account</Label>
+            <AccountSelect
+              id="tx-account"
+              accounts={accounts}
+              value={values.accountId ? String(values.accountId) : undefined}
+              onChange={(id) => set("accountId", Number(id))}
             />
           </div>
           <div className="grid gap-2">

@@ -1,4 +1,4 @@
-import { transactionSchema } from "@/lib/validation";
+import { importRowSchema } from "@/lib/validation";
 import { findDuplicate, type ExistingTransaction } from "./duplicates";
 import type { Suggestion } from "./suggest";
 import type { Direction, DraftRow } from "./types";
@@ -93,7 +93,7 @@ export function buildReviewRows({
       direction,
       categoryId,
     };
-    const parsed = transactionSchema.safeParse(toTransactionInput(values));
+    const parsed = importRowSchema.safeParse(toTransactionInput(values));
     const errors = parsed.success
       ? []
       : [...new Set(parsed.error.issues.map((i) => (i.path[0] === "categoryId" ? "Pick a category" : i.message)))];

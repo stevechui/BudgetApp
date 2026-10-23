@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FileTextIcon, PlusIcon, ScanTextIcon, UploadIcon } from "lucide-react";
 import { toast } from "sonner";
+import { AccountSelect, type AccountOption } from "@/components/account-select";
 import { CategorySelect, type CategoryOption } from "@/components/category-select";
 import { ImportRawLines } from "@/components/import-raw-lines";
 import { ImportReviewTable } from "@/components/import-review-table";
@@ -30,16 +32,19 @@ import { cn } from "@/lib/utils";
 type Extraction = { fileName: string; lines: Line[]; pages: PageInfo[] };
 
 const DAY_MS = 86_400_000;
+const NO_EXISTING: ExistingTransaction[] = [];
 
 function shiftDay(day: string, days: number) {
   return new Date(Date.parse(`${day}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
 }
 
 export function StatementImporter({
+  accounts,
   categories,
   templates,
   history,
 }: {
+  accounts: AccountOption[];
   categories: CategoryOption[];
   templates: ImportTemplate[];
   history: CategoryHistory;
@@ -55,11 +60,17 @@ export function StatementImporter({
   const [extraction, setExtraction] = useState<Extraction | null>(null);
   const [config, setConfig] = useState<TemplateConfig>(DEFAULT_CONFIG);
   const [templateId, setTemplateId] = useState<number | null>(null);
+  const [accountId, setAccountId] = useState<number | null>(
+    accounts.length === 1 ? accounts[0].id : null,
+  );
   const [forced, setForced] = useState<ReadonlySet<number>>(new Set());
   const [edits, setEdits] = useState<Record<string, RowEdit>>({});
   const [manualRows, setManualRows] = useState<DraftRow[]>([]);
   const [deleted, setDeleted] = useState<ReadonlySet<string>>(new Set());
-  const [existing, setExisting] = useState<ExistingTransaction[]>([]);
+  const [fetched, setFetched] = useState<{
+    accountId: number | null;
+    rows: ExistingTransaction[];
+  }>({ accountId: null, rows: NO_EXISTING });
   const [onlyProblems, setOnlyProblems] = useState(false);
   const [submitting, startSubmit] = useTransition();
 
@@ -68,6 +79,8 @@ export function StatementImporter({
     [extraction, config, forced],
   );
   const suggest = useMemo(() => createSuggester(history, categories), [history, categories]);
+  // Ignore results fetched for a previously chosen account
+  const existing = fetched.accountId === accountId ? fetched.rows : NO_EXISTING;
   const rows = useMemo(
     () =>
       result
@@ -81,15 +94,15 @@ export function StatementImporter({
   const rangeTo = dates.length ? shiftDay(dates[dates.length - 1], 1) : null;
 
   useEffect(() => {
-    if (!rangeFrom || !rangeTo) return;
+    if (!accountId || !rangeFrom || !rangeTo) return;
     let cancelled = false;
-    findPossibleDuplicates(rangeFrom, rangeTo).then((found) => {
-      if (!cancelled) setExisting(found);
+    findPossibleDuplicates(rangeFrom, rangeTo, accountId).then((found) => {
+      if (!cancelled) setFetched({ accountId, rows: found });
     });
     return () => {
       cancelled = true;
     };
-  }, [rangeFrom, rangeTo]);
+  }, [accountId, rangeFrom, rangeTo]);
 
   async function read(selected: File, pwd?: string) {
     setFile(selected);
@@ -111,11 +124,12 @@ export function StatementImporter({
         setExtraction({ fileName: selected.name, lines, pages });
         setTemplateId(matched?.id ?? null);
         setConfig(matched?.config ?? DEFAULT_CONFIG);
+        applyTemplateAccount(matched);
         setForced(new Set());
         setEdits({});
         setManualRows([]);
         setDeleted(new Set());
-        setExisting([]);
+        setFetched({ accountId: null, rows: NO_EXISTING });
         if (matched) toast.success(`Applied template "${matched.name}"`);
       } catch (e) {
         if (e instanceof PdfPasswordError) {
@@ -139,9 +153,16 @@ export function StatementImporter({
     setReadError(null);
   }
 
+  /** Switches to the template's account, if it has one that still exists. */
+  function applyTemplateAccount(t: ImportTemplate | null | undefined) {
+    if (t?.accountId && accounts.some((a) => a.id === t.accountId)) setAccountId(t.accountId);
+  }
+
   function selectTemplate(id: number | null) {
+    const t = templates.find((t) => t.id === id);
     setTemplateId(id);
-    setConfig(templates.find((t) => t.id === id)?.config ?? DEFAULT_CONFIG);
+    setConfig(t?.config ?? DEFAULT_CONFIG);
+    applyTemplateAccount(t);
   }
 
   function editRow(key: string, edit: RowEdit) {
@@ -227,10 +248,11 @@ export function StatementImporter({
     : rows;
 
   function submit() {
-    if (!extraction) return;
+    if (!extraction || !accountId) return;
     startSubmit(async () => {
       const res = await importTransactions({
         fileName: extraction.fileName,
+        accountId,
         rows: included.map(toTransactionInput),
       });
       if (!res.ok) {
@@ -296,7 +318,22 @@ export function StatementImporter({
             {template && <span>· Template: {template.name}</span>}
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap items-center justify-between gap-2 text-sm">
+        <CardContent className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 text-sm">
+          <div className="flex w-full flex-wrap items-center gap-3">
+            <Label htmlFor="import-account">Import into account</Label>
+            <AccountSelect
+              id="import-account"
+              accounts={accounts}
+              value={accountId ? String(accountId) : undefined}
+              onChange={(id) => setAccountId(Number(id))}
+              className="w-64"
+            />
+            {accounts.length === 0 && (
+              <Link href="/accounts" className="text-muted-foreground underline">
+                Create an account first
+              </Link>
+            )}
+          </div>
           <span className="text-muted-foreground">
             Found {result.rows.length} transaction{result.rows.length === 1 ? "" : "s"} in{" "}
             {result.lines.length} lines.
@@ -321,6 +358,8 @@ export function StatementImporter({
         onTemplateSelect={selectTemplate}
         onTemplateIdChange={setTemplateId}
         suggestedFingerprint={suggestFingerprint(extraction.lines)}
+        accounts={accounts}
+        accountId={accountId}
       />
 
       <Tabs defaultValue="review">
@@ -388,12 +427,21 @@ export function StatementImporter({
           </span>
           <ReconcileBadge check={check} />
           <div className="ml-auto flex items-center gap-3">
-            {invalid.length > 0 && (
+            {!accountId ? (
               <span className="text-rose-600 dark:text-rose-400">
-                Fix {invalid.length} row{invalid.length === 1 ? "" : "s"} before importing
+                Choose an account to import into
               </span>
+            ) : (
+              invalid.length > 0 && (
+                <span className="text-rose-600 dark:text-rose-400">
+                  Fix {invalid.length} row{invalid.length === 1 ? "" : "s"} before importing
+                </span>
+              )
             )}
-            <Button onClick={submit} disabled={submitting || included.length === 0 || invalid.length > 0}>
+            <Button
+              onClick={submit}
+              disabled={submitting || !accountId || included.length === 0 || invalid.length > 0}
+            >
               {submitting ? "Importing..." : `Import ${included.length} transaction${included.length === 1 ? "" : "s"}`}
             </Button>
           </div>

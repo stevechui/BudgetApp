@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     "lib/generated/**",
     "public/pdfjs/**",
     "public/tesseract/**",
+    "playwright-report/**",
+    "test-results/**",
   ]),
 ]);
 

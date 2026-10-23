@@ -15,8 +15,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { formatDay } from "@/lib/format";
-import { getRecentTransactions } from "@/lib/queries";
+import { formatCents, formatDay } from "@/lib/format";
+import { getAccounts, getRecentTransactions } from "@/lib/queries";
+import { cn } from "@/lib/utils";
 import { getReportTransactions } from "@/lib/reports";
 import { buildSeries, toLocalDay, totals } from "@/lib/report-math";
 
@@ -28,11 +29,58 @@ export default function DashboardPage() {
         <Suspense fallback={<LoadingBlock />}>
           <Summary />
         </Suspense>
-        <Suspense fallback={<LoadingBlock />}>
-          <RecentTransactions />
-        </Suspense>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <Suspense fallback={<LoadingBlock />}>
+              <RecentTransactions />
+            </Suspense>
+          </div>
+          <Suspense fallback={<LoadingBlock />}>
+            <Accounts />
+          </Suspense>
+        </div>
       </div>
     </>
+  );
+}
+
+async function Accounts() {
+  const accounts = await getAccounts();
+  const total = accounts.reduce((sum, a) => sum + a.balanceCents, 0);
+  return (
+    <Card className="self-start">
+      <CardHeader>
+        <CardTitle>Accounts</CardTitle>
+        <CardDescription>Net worth {formatCents(total)}</CardDescription>
+        <CardAction>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/accounts">Manage</Link>
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        <ul className="divide-y">
+          {accounts.map((a) => (
+            <li key={a.id} className="flex items-center gap-4 py-2.5 text-sm">
+              <Link
+                href={`/transactions?account=${a.id}`}
+                className="flex-1 truncate font-medium hover:underline"
+              >
+                {a.name}
+              </Link>
+              <span
+                className={cn(
+                  "tabular-nums",
+                  a.balanceCents < 0 && "text-rose-600 dark:text-rose-400",
+                )}
+              >
+                {formatCents(a.balanceCents)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
 

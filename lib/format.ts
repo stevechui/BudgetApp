@@ -34,3 +34,13 @@ export const CATEGORY_TYPE_LABELS = {
   DEBIT: "Debit (expense)",
   TRANSFER: "Transfer (no budget impact)",
 } as const;
+
+/** In display order */
+export const ACCOUNT_TYPE_LABELS = {
+  CHECKING: "Checking",
+  SAVINGS: "Savings",
+  CREDIT_CARD: "Credit card",
+  CASH: "Cash",
+  INVESTMENT: "Investment",
+  OTHER: "Other",
+} as const;

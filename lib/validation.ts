@@ -22,11 +22,40 @@ export const transactionSchema = z.object({
     .refine((cents) => cents > 0, "Amount must be greater than 0"),
   direction: z.enum(["CREDIT", "DEBIT"], { message: "Pick credit or debit" }),
   categoryId: id,
+  accountId: z.coerce.number({ message: "Pick an account" }).int().positive("Pick an account"),
 });
+
+export const ACCOUNT_TYPES = [
+  "CHECKING",
+  "SAVINGS",
+  "CREDIT_CARD",
+  "CASH",
+  "INVESTMENT",
+  "OTHER",
+] as const;
+
+export const accountSchema = z.object({
+  name,
+  institution: z
+    .string()
+    .trim()
+    .max(80, "Institution is too long")
+    .transform((v) => v || null),
+  type: z.enum(ACCOUNT_TYPES, { message: "Pick an account type" }),
+  openingBalance: z
+    .string()
+    .trim()
+    .regex(/^-?\d+(\.\d{1,2})?$/, "Enter an amount, e.g. 1250.00 or -300")
+    .transform((v) => Math.round(Number(v) * 100)),
+});
+
+/** An imported row; the account is chosen once for the whole batch. */
+export const importRowSchema = transactionSchema.omit({ accountId: true });
 
 export const importSchema = z.object({
   fileName: z.string().trim().min(1).max(200),
-  rows: z.array(transactionSchema).min(1, "Select at least one row to import").max(5000),
+  accountId: z.coerce.number({ message: "Pick an account" }).int().positive("Pick an account"),
+  rows: z.array(importRowSchema).min(1, "Select at least one row to import").max(5000),
 });
 
 const columnSchema = z.object({
@@ -53,9 +82,11 @@ export const templateSchema = z.object({
     .min(3, "Enter some text that appears on this bank's statements")
     .max(200),
   config: templateConfigSchema,
+  accountId: id.nullable().optional(),
 });
 
 export type GroupInput = z.input<typeof groupSchema>;
+export type AccountInput = z.input<typeof accountSchema>;
 export type ImportInput = z.input<typeof importSchema>;
 export type TemplateInput = z.input<typeof templateSchema>;
 export type CategoryInput = z.input<typeof categorySchema>;
