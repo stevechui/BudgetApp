@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { RotateCcwIcon, SaveIcon, Trash2Icon, XIcon } from "lucide-react";
 import { toast } from "sonner";
-import { AccountSelect, type AccountOption } from "@/components/account-select";
+import type { AccountOption } from "@/components/account-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -99,7 +99,8 @@ export function ImportSettings({
 }) {
   const [pattern, setPattern] = useState("");
   const [pending, startTransition] = useTransition();
-  const template = templates.find((t) => t.id === templateId) ?? null;
+  const accountTemplates = templates.filter((t) => t.accountId === accountId);
+  const template = accountTemplates.find((t) => t.id === templateId) ?? null;
 
   function setColumn(index: number, patch: Partial<Column>) {
     const columns: Column[] = result.columns.map((c, i) => (i === index ? { ...c, ...patch } : c));
@@ -150,7 +151,7 @@ export function ImportSettings({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">No template (auto-detect)</SelectItem>
-                {templates.map((t) => (
+                {accountTemplates.map((t) => (
                   <SelectItem key={t.id} value={String(t.id)}>
                     {t.name}
                   </SelectItem>
@@ -327,8 +328,6 @@ export function ImportSettings({
   );
 }
 
-const NO_ACCOUNT = "all";
-
 function TemplateDialog({
   config,
   template,
@@ -347,15 +346,13 @@ function TemplateDialog({
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [fingerprint, setFingerprint] = useState("");
-  const [account, setAccount] = useState(NO_ACCOUNT);
   const [pending, startTransition] = useTransition();
+  const accountName = accounts.find((a) => a.id === accountId)?.name;
 
   function onOpenChange(next: boolean) {
     if (next) {
       setName(template?.name ?? "");
       setFingerprint(template?.fingerprint ?? suggestedFingerprint);
-      const initial = accountId ?? template?.accountId;
-      setAccount(initial ? String(initial) : NO_ACCOUNT);
     }
     setOpen(next);
   }
@@ -366,7 +363,7 @@ function TemplateDialog({
         name,
         fingerprint,
         config,
-        accountId: account === NO_ACCOUNT ? null : Number(account),
+        accountId,
       };
       if (template && !asNew) {
         const res = await updateTemplate(template.id, input);
@@ -425,22 +422,23 @@ function TemplateDialog({
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="template-account">Import into account</Label>
-            <AccountSelect
-              id="template-account"
-              accounts={accounts}
-              value={account}
-              onChange={setAccount}
-              allLabel="No default account"
-            />
+            <Label>Associated account</Label>
+            <p className="text-sm text-muted-foreground">
+              {accountName ?? "Select an account before saving a template."}
+            </p>
           </div>
           <DialogFooter>
             {template && (
-              <Button type="button" variant="outline" onClick={() => submit(true)} disabled={pending}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => submit(true)}
+                disabled={pending || accountId === null}
+              >
                 Save as new
               </Button>
             )}
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" disabled={pending || accountId === null}>
               {pending ? "Saving..." : template ? "Update" : "Save"}
             </Button>
           </DialogFooter>

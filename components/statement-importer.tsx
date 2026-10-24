@@ -118,13 +118,15 @@ export function StatementImporter({
           setReadError("No text could be read from this PDF.");
           return;
         }
-        const matched = matchTemplate(documentText(lines), templates);
+        const matched = matchTemplate(
+          documentText(lines),
+          templates.filter((template) => template.accountId === accountId),
+        );
         setNeedsPassword(null);
         setPassword("");
         setExtraction({ fileName: selected.name, lines, pages });
         setTemplateId(matched?.id ?? null);
         setConfig(matched?.config ?? DEFAULT_CONFIG);
-        applyTemplateAccount(matched);
         setForced(new Set());
         setEdits({});
         setManualRows([]);
@@ -153,16 +155,19 @@ export function StatementImporter({
     setReadError(null);
   }
 
-  /** Switches to the template's account, if it has one that still exists. */
-  function applyTemplateAccount(t: ImportTemplate | null | undefined) {
-    if (t?.accountId && accounts.some((a) => a.id === t.accountId)) setAccountId(t.accountId);
+  function selectAccount(id: number) {
+    setAccountId(id);
+    const selectedTemplate = templates.find((t) => t.id === templateId);
+    if (selectedTemplate && selectedTemplate.accountId !== id) {
+      setTemplateId(null);
+      setConfig(DEFAULT_CONFIG);
+    }
   }
 
   function selectTemplate(id: number | null) {
-    const t = templates.find((t) => t.id === id);
-    setTemplateId(id);
+    const t = templates.find((t) => t.id === id && t.accountId === accountId);
+    setTemplateId(t?.id ?? null);
     setConfig(t?.config ?? DEFAULT_CONFIG);
-    applyTemplateAccount(t);
   }
 
   function editRow(key: string, edit: RowEdit) {
@@ -325,7 +330,7 @@ export function StatementImporter({
               id="import-account"
               accounts={accounts}
               value={accountId ? String(accountId) : undefined}
-              onChange={(id) => setAccountId(Number(id))}
+              onChange={(id) => selectAccount(Number(id))}
               className="w-64"
             />
             {accounts.length === 0 && (
