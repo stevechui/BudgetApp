@@ -36,7 +36,7 @@ Use the environment variable rather than a `.env.production` file. Next.js reads
 - **After pulling or changing code:** stop the server, then run `npx prisma migrate deploy`, `npm run build` and `npm start` again. Production mode doesn't hot-reload, and rebuilding while the server runs replaces files it is using.
 - **Different port:** `npm start -- -p 8080`.
 - **Keep it running after closing the terminal:** use a process manager, for example `npx pm2 start npm --name budget -- start`. On macOS a launchd agent also works.
-- **Backups:** all your data is in the one `.db` file. Copy it while the app is stopped, or run `sqlite3 prisma/dev.db ".backup backup.db"` while it's running.
+- **Backups:** each production server startup creates an online SQLite backup beside the database, named with the database's name and the startup date in `MMDDYYYY` format (for example, `prod-10242026.db`). A subsequent startup on the same day replaces that day's backup. You can also run `sqlite3 prisma/dev.db ".backup backup.db"` while the app is running.
 
 ## Access from other devices
 
