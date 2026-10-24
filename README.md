@@ -14,6 +14,8 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+To run the optimized production build locally, see [PRODUCTION.md](PRODUCTION.md).
+
 `npm run db:reset` drops the database, re-applies migrations and re-runs the default seed.
 
 The project `.npmrc` points npm at the public registry.
