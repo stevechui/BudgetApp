@@ -65,6 +65,12 @@ export type Direction = "CREDIT" | "DEBIT";
 
 export type LineStatus = "row" | "merged" | "skipped" | "header";
 
+export type AmountCandidate = {
+  amount: string;
+  amountCents: number;
+  direction: Direction;
+};
+
 export type DraftRow = {
   /** Stable across re-parses of the same document: based on the first source line */
   key: string;
@@ -74,6 +80,7 @@ export type DraftRow = {
   /** Positive decimal string such as "12.34", or "" when no amount could be read */
   amount: string;
   amountCents: number;
+  amountCandidates: AmountCandidate[];
   direction: Direction;
   balanceCents: number | null;
   sourceLines: number[];

@@ -170,6 +170,27 @@ describe("parseStatement without a header", () => {
     ]);
   });
 
+  it("retains multiple extracted amounts as selectable candidates", () => {
+    const result = parse(
+      [...row(60, [[50, "01/03"], [100, "REFUND"], [350, "12.00"], [410, "34.00"]])],
+      {
+        columns: [
+          { label: "Date", kind: "text", role: "date", x0: 45, x1: 80 },
+          { label: "Description", kind: "text", role: "description", x0: 95, x1: 180 },
+          { label: "Amount", kind: "money", role: "amount", x0: 340, x1: 450 },
+        ],
+      },
+    );
+    expect(result.rows[0]).toMatchObject({
+      amount: "12.00",
+      amountCandidates: [
+        { amount: "12.00", amountCents: 1200, direction: "CREDIT" },
+        { amount: "34.00", amountCents: 3400, direction: "CREDIT" },
+      ],
+      warnings: ["Multiple amounts found; choose the correct one below"],
+    });
+  });
+
   it("splits two amount columns into amount and balance when both appear on most lines", () => {
     const items = [
       ...row(60, [[50, "01/03"], [100, "DEPOSIT"], [300, "100.00"], [400, "600.00"]]),

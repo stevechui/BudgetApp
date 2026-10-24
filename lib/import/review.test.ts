@@ -8,6 +8,7 @@ const draft: DraftRow = {
   description: "SAFEWAY #1234",
   amount: "82.15",
   amountCents: 8215,
+  amountCandidates: [{ amount: "82.15", amountCents: 8215, direction: "DEBIT" }],
   direction: "DEBIT",
   balanceCents: null,
   sourceLines: [1],
@@ -32,5 +33,9 @@ describe("buildReviewRows", () => {
 
   it("asks for a category when none is set", () => {
     expect(build()[0].errors).toEqual(["Pick a category"]);
+  });
+
+  it("keeps parsed amount candidates available in the review row", () => {
+    expect(build()[0].amountCandidates).toEqual(draft.amountCandidates);
   });
 });

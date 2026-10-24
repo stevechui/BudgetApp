@@ -49,6 +49,7 @@ next-env.d.ts
 /lib/generated/
 /prisma/*.db
 /prisma/*.db-journal
+/database/
 
 # statement import assets (copied by scripts/copy-import-assets.mjs)
 /public/pdfjs/

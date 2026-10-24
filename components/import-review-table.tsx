@@ -73,13 +73,18 @@ export function ImportReviewTable({
           )}
           {rows.map((r) => {
             const problems = r.include ? r.errors : [];
+            const selectedAmountCandidate = r.amountCandidates.findIndex(
+              (candidate) => candidate.amount === r.amount && candidate.direction === r.direction,
+            );
             return (
               <TableRow
                 key={r.key}
                 className={cn(
                   "align-top",
                   !r.include && "opacity-50",
-                  problems.length > 0 && "bg-rose-50/60 dark:bg-rose-950/20",
+                  problems.length > 0
+                    ? "bg-rose-50/60 dark:bg-rose-950/20"
+                    : r.amountCandidates.length > 1 && "bg-amber-50/70 dark:bg-amber-950/20",
                 )}
               >
                 <TableCell className="pt-3">
@@ -116,6 +121,31 @@ export function ImportReviewTable({
                     onChange={(e) => onEdit(r.key, { amount: e.target.value })}
                     aria-invalid={r.include && r.amountCents <= 0}
                   />
+                  {r.amountCandidates.length > 1 && (
+                    <Select
+                      value={selectedAmountCandidate >= 0 ? String(selectedAmountCandidate) : undefined}
+                      onValueChange={(value) => {
+                        const candidate = r.amountCandidates[Number(value)];
+                        if (candidate) {
+                          onEdit(r.key, {
+                            amount: candidate.amount,
+                            direction: candidate.direction,
+                          });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="mt-1 w-full" aria-label="Choose extracted amount">
+                        <SelectValue placeholder="Choose amount" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {r.amountCandidates.map((candidate, index) => (
+                          <SelectItem key={`${candidate.amount}-${candidate.direction}-${index}`} value={String(index)}>
+                            ${candidate.amount} · {candidate.direction === "DEBIT" ? "Debit" : "Credit"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Select

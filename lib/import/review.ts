@@ -1,7 +1,7 @@
 import { importRowSchema } from "@/lib/validation";
 import { findDuplicate, type ExistingTransaction } from "./duplicates";
 import type { Suggestion } from "./suggest";
-import type { Direction, DraftRow } from "./types";
+import type { AmountCandidate, Direction, DraftRow } from "./types";
 
 export type RowValues = {
   include: boolean;
@@ -19,6 +19,7 @@ export type ReviewRow = RowValues & {
   key: string;
   manual: boolean;
   amountCents: number;
+  amountCandidates: AmountCandidate[];
   balanceCents: number | null;
   sourceLines: number[];
   suggestion: Suggestion["match"] | null;
@@ -103,6 +104,7 @@ export function buildReviewRows({
       key: draft.key,
       manual,
       amountCents,
+      amountCandidates: draft.amountCandidates,
       balanceCents: draft.balanceCents,
       sourceLines: draft.sourceLines,
       suggestion,
@@ -123,6 +125,7 @@ export function blankRow(date: string): DraftRow {
     description: "",
     amount: "",
     amountCents: 0,
+    amountCandidates: [],
     direction: "DEBIT",
     balanceCents: null,
     sourceLines: [],

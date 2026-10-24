@@ -224,10 +224,19 @@ export function parseStatement(
       ...parts.credit.map((m) => ({ m, role: "credit" as const })),
       ...parts.amount.map((m) => ({ m, role: "amount" as const })),
     ].filter((c) => c.m.cents > 0);
+    const amountCandidates = candidates.map(({ m, role }) => {
+      let candidateDirection = directionOf(m, role, signMode);
+      if (config.flipDirection) candidateDirection = candidateDirection === "DEBIT" ? "CREDIT" : "DEBIT";
+      return {
+        amount: centsToDecimal(m.cents),
+        amountCents: m.cents,
+        direction: candidateDirection,
+      };
+    });
     if (candidates.length > 0) {
       amountCents = candidates[0].m.cents;
       direction = directionOf(candidates[0].m, candidates[0].role, signMode);
-      if (candidates.length > 1) warnings.push("More than one amount on this line; using the first");
+      if (candidates.length > 1) warnings.push("Multiple amounts found; choose the correct one below");
     } else {
       warnings.push("No amount found");
     }
@@ -243,6 +252,7 @@ export function parseStatement(
       description: parts.description.map((w) => w.text).join(" "),
       amount: amountCents ? centsToDecimal(amountCents) : "",
       amountCents,
+      amountCandidates,
       direction,
       balanceCents: bal ? (bal.negative || bal.suffix === "DR" ? -bal.cents : bal.cents) : null,
       sourceLines: [line.id, ...extraLines.map((l) => l.id)],
