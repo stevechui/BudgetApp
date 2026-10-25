@@ -181,14 +181,20 @@ export function findStatementBalances(lines: Line[]): StatementBalances {
 export function parseStatement(
   lines: Line[],
   config: TemplateConfig,
-  options: { forcedRows?: ReadonlySet<number>; today?: Date } = {},
+  options: {
+    forcedRows?: ReadonlySet<number>;
+    today?: Date;
+    detectedColumns?: Column[];
+    headerLineId?: number;
+  } = {},
 ): ParseResult {
   const forced = options.forcedRows ?? new Set<number>();
   const today = options.today ?? new Date();
   const dateFormat = config.dateFormat === "auto" ? detectDateFormat(lines) : config.dateFormat;
 
   const header = findHeader(lines);
-  const headerText = header?.line.text;
+  const headerText =
+    header?.line.text ?? lines.find((line) => line.id === options.headerLineId)?.text;
 
   const prepared = lines.map((line) => {
     const words = normalizeWords(line.words);
@@ -196,6 +202,7 @@ export function parseStatement(
   });
 
   const detectedColumns =
+    options.detectedColumns ??
     header?.columns ??
     clusterColumns(
       prepared

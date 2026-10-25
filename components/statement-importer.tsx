@@ -20,16 +20,31 @@ import { findPossibleDuplicates, importTransactions, undoImport } from "@/lib/ac
 import { formatCents, formatDay, inputToDate } from "@/lib/format";
 import type { ExistingTransaction } from "@/lib/import/duplicates";
 import type { ExtractProgress, PageInfo } from "@/lib/import/extract-pdf";
+import { CsvImportError, extractCsv } from "@/lib/import/extract-csv";
 import { groupLines } from "@/lib/import/lines";
 import { parseStatement, suggestSkipPattern } from "@/lib/import/parse";
 import { reconcile } from "@/lib/import/reconcile";
 import { blankRow, buildReviewRows, toTransactionInput, type RowEdit } from "@/lib/import/review";
 import { createSuggester, normalizeDescription, type CategoryHistory } from "@/lib/import/suggest";
 import { documentText, matchTemplate, suggestFingerprint } from "@/lib/import/template";
-import { DEFAULT_CONFIG, type DraftRow, type Line, type TemplateConfig } from "@/lib/import/types";
+import {
+  DEFAULT_CONFIG,
+  type Column,
+  type DraftRow,
+  type Line,
+  type TemplateConfig,
+} from "@/lib/import/types";
 import { cn } from "@/lib/utils";
 
-type Extraction = { fileName: string; lines: Line[]; pages: PageInfo[] };
+type Extraction = {
+  fileName: string;
+  source: "pdf" | "csv";
+  lines: Line[];
+  pages: PageInfo[];
+  detectedColumns?: Column[];
+  headerLineId?: number;
+  recordCount?: number;
+};
 
 const DAY_MS = 86_400_000;
 const NO_EXISTING: ExistingTransaction[] = [];
@@ -75,7 +90,14 @@ export function StatementImporter({
   const [submitting, startSubmit] = useTransition();
 
   const result = useMemo(
-    () => (extraction ? parseStatement(extraction.lines, config, { forcedRows: forced }) : null),
+    () =>
+      extraction
+        ? parseStatement(extraction.lines, config, {
+            forcedRows: forced,
+            detectedColumns: extraction.detectedColumns,
+            headerLineId: extraction.headerLineId,
+          })
+        : null,
     [extraction, config, forced],
   );
   const suggest = useMemo(() => createSuggester(history, categories), [history, categories]);
@@ -104,45 +126,72 @@ export function StatementImporter({
     };
   }, [accountId, rangeFrom, rangeTo]);
 
+  function applyExtraction(next: Extraction) {
+    const matched = matchTemplate(
+      documentText(next.lines),
+      templates.filter((template) => template.accountId === accountId),
+    );
+    setNeedsPassword(null);
+    setPassword("");
+    setExtraction(next);
+    setTemplateId(matched?.id ?? null);
+    setConfig(matched?.config ?? DEFAULT_CONFIG);
+    setForced(new Set());
+    setEdits({});
+    setManualRows([]);
+    setDeleted(new Set());
+    setFetched({ accountId: null, rows: NO_EXISTING });
+    if (matched) toast.success(`Applied template "${matched.name}"`);
+  }
+
   async function read(selected: File, pwd?: string) {
+    const isCsv = selected.name.toLowerCase().endsWith(".csv") || selected.type === "text/csv";
     setFile(selected);
     setReading(true);
     setReadError(null);
     setProgress(null);
     try {
-      const { extractPdf, PdfPasswordError } = await import("@/lib/import/extract-pdf");
-      try {
-        const { items, pages } = await extractPdf(selected, { password: pwd, onProgress: setProgress });
-        const lines = groupLines(items);
-        if (lines.length === 0) {
-          setReadError("No text could be read from this PDF.");
-          return;
+      if (isCsv) {
+        const extracted = extractCsv(await selected.text());
+        applyExtraction({
+          fileName: selected.name,
+          source: "csv",
+          lines: extracted.lines,
+          pages: [],
+          detectedColumns: extracted.columns,
+          headerLineId: extracted.headerLineId,
+          recordCount: extracted.recordCount,
+        });
+      } else {
+        const { extractPdf, PdfPasswordError } = await import("@/lib/import/extract-pdf");
+        try {
+          const { items, pages } = await extractPdf(selected, {
+            password: pwd,
+            onProgress: setProgress,
+          });
+          const lines = groupLines(items);
+          if (lines.length === 0) {
+            setReadError("No text could be read from this PDF.");
+            return;
+          }
+          applyExtraction({ fileName: selected.name, source: "pdf", lines, pages });
+        } catch (e) {
+          if (e instanceof PdfPasswordError) {
+            setNeedsPassword(e.incorrect ? "incorrect" : "required");
+            return;
+          }
+          throw e;
         }
-        const matched = matchTemplate(
-          documentText(lines),
-          templates.filter((template) => template.accountId === accountId),
-        );
-        setNeedsPassword(null);
-        setPassword("");
-        setExtraction({ fileName: selected.name, lines, pages });
-        setTemplateId(matched?.id ?? null);
-        setConfig(matched?.config ?? DEFAULT_CONFIG);
-        setForced(new Set());
-        setEdits({});
-        setManualRows([]);
-        setDeleted(new Set());
-        setFetched({ accountId: null, rows: NO_EXISTING });
-        if (matched) toast.success(`Applied template "${matched.name}"`);
-      } catch (e) {
-        if (e instanceof PdfPasswordError) {
-          setNeedsPassword(e.incorrect ? "incorrect" : "required");
-          return;
-        }
-        throw e;
       }
     } catch (e) {
       console.error(e);
-      setReadError("This file couldn't be read as a PDF.");
+      setReadError(
+        isCsv
+          ? e instanceof CsvImportError
+            ? e.message
+            : "This file couldn't be read as a CSV."
+          : "This file couldn't be read as a PDF.",
+      );
     } finally {
       setReading(false);
     }
@@ -306,15 +355,21 @@ export function StatementImporter({
             <FileTextIcon className="size-4" /> {extraction.fileName}
           </CardTitle>
           <CardDescription className="flex flex-wrap items-center gap-2">
-            <span>
-              {extraction.pages.length} page{extraction.pages.length === 1 ? "" : "s"}
-            </span>
-            {extraction.pages.map((p) => (
-              <Badge key={p.page} variant={p.method === "ocr" ? "secondary" : "outline"}>
-                {p.method === "ocr" && <ScanTextIcon className="size-3" />}
-                Page {p.page}: {p.method === "ocr" ? "OCR" : "Text layer"}
-              </Badge>
-            ))}
+            {extraction.source === "pdf" ? (
+              <>
+                <span>
+                  {extraction.pages.length} page{extraction.pages.length === 1 ? "" : "s"}
+                </span>
+                {extraction.pages.map((p) => (
+                  <Badge key={p.page} variant={p.method === "ocr" ? "secondary" : "outline"}>
+                    {p.method === "ocr" && <ScanTextIcon className="size-3" />}
+                    Page {p.page}: {p.method === "ocr" ? "OCR" : "Text layer"}
+                  </Badge>
+                ))}
+              </>
+            ) : (
+              <span>{extraction.recordCount} CSV records</span>
+            )}
             {result.period.to && (
               <span>
                 · Statement dates up to {formatDay(inputToDate(result.period.to))}
@@ -342,7 +397,9 @@ export function StatementImporter({
           <span className="text-muted-foreground">
             Found {result.rows.length} transaction{result.rows.length === 1 ? "" : "s"} in{" "}
             {result.lines.length} lines.
-            {ocrPages > 0 && " OCR text can contain misread characters, so check amounts carefully."}
+            {extraction.source === "pdf" &&
+              ocrPages > 0 &&
+              " OCR text can contain misread characters, so check amounts carefully."}
           </span>
           <Button variant="outline" size="sm" onClick={startOver}>
             <UploadIcon /> Choose another file
@@ -365,6 +422,7 @@ export function StatementImporter({
         suggestedFingerprint={suggestFingerprint(extraction.lines)}
         accounts={accounts}
         accountId={accountId}
+        showColumnCoordinates={extraction.source === "pdf"}
       />
 
       <Tabs defaultValue="review">
@@ -501,8 +559,11 @@ function UploadCard({
   function accept(files: FileList | null) {
     const f = files?.[0];
     if (!f) return;
-    if (f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf")) {
-      toast.error("Please choose a PDF file");
+    const name = f.name.toLowerCase();
+    const isPdf = f.type === "application/pdf" || name.endsWith(".pdf");
+    const isCsv = f.type === "text/csv" || name.endsWith(".csv");
+    if (!isPdf && !isCsv) {
+      toast.error("Please choose a PDF or CSV file");
       return;
     }
     onFile(f);
@@ -513,8 +574,8 @@ function UploadCard({
       <CardHeader>
         <CardTitle>Upload a bank statement</CardTitle>
         <CardDescription>
-          The PDF is read entirely in your browser. Scanned pages are run through local OCR.
-          Nothing is uploaded until you import the reviewed rows.
+          PDFs are read in your browser, with scanned pages processed using local OCR. CSV files are
+          parsed in your browser. Nothing is uploaded until you import the reviewed rows.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -537,11 +598,11 @@ function UploadCard({
         >
           <UploadIcon className="size-6" />
           <span>
-            <span className="font-medium text-foreground">Choose a PDF</span> or drag it here
+            <span className="font-medium text-foreground">Choose a PDF or CSV</span> or drag it here
           </span>
           <input
             type="file"
-            accept="application/pdf,.pdf"
+            accept="application/pdf,.pdf,text/csv,.csv"
             className="sr-only"
             disabled={reading}
             onChange={(e) => {

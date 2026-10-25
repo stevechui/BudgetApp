@@ -81,6 +81,7 @@ export function ImportSettings({
   suggestedFingerprint,
   accounts,
   accountId,
+  showColumnCoordinates = true,
 }: {
   result: ParseResult;
   config: TemplateConfig;
@@ -96,6 +97,7 @@ export function ImportSettings({
   accounts: AccountOption[];
   /** The account chosen for this import; the default when saving a template */
   accountId: number | null;
+  showColumnCoordinates?: boolean;
 }) {
   const [pattern, setPattern] = useState("");
   const [pending, startTransition] = useTransition();
@@ -191,9 +193,11 @@ export function ImportSettings({
                     <div className="truncate text-sm font-medium" title={c.label}>
                       {c.label}
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      x {Math.round(c.x0)}–{Math.round(c.x1)}
-                    </div>
+                    {showColumnCoordinates && (
+                      <div className="text-xs text-muted-foreground">
+                        x {Math.round(c.x0)}–{Math.round(c.x1)}
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <Select value={c.kind} onValueChange={(v) => setKind(i, v as ColumnKind)}>

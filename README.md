@@ -35,14 +35,14 @@ Each category has a type, and each transaction has a direction (credit or debit)
 | --- | --- |
 | `/` | This month's totals, 6-month trend, recent transactions |
 | `/transactions` | Filterable list; add, edit, delete; change category inline |
-| `/import` | Extract transactions from a bank statement PDF, review and edit them, then import |
+| `/import` | Import transactions from a bank statement PDF or CSV, review and edit them, then import |
 | `/reports` | Weekly / monthly / quarterly charts, group breakdown, drill-down pie |
 | `/categories` | CRUD for categories (name, type, group) |
 | `/category-groups` | CRUD for category groups |
 
 ## Statement import
 
-PDFs are parsed entirely in the browser: the text layer is read with PDF.js, and pages without text are run through Tesseract OCR. Both run offline from assets that `npm install` copies into `public/` (see `scripts/copy-import-assets.mjs`).
+PDFs are parsed entirely in the browser: the text layer is read with PDF.js, and pages without text are run through Tesseract OCR. CSV bank exports are parsed in the browser from their header row. Both formats stay local until the reviewed transactions are imported. PDF.js and Tesseract run offline from assets that `npm install` copies into `public/` (see `scripts/copy-import-assets.mjs`).
 
 - Rows get category suggestions from past transactions with similar descriptions, and rows that match an existing transaction are flagged and unchecked.
 - If the statement shows opening/closing or running balances, the review screen checks that the rows add up.

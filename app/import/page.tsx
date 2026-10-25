@@ -9,7 +9,7 @@ export default function ImportPage() {
     <>
       <PageHeader
         title="Import statement"
-        description="Extract transactions from a bank statement PDF, review them, then add them to your budget."
+        description="Import transactions from a bank statement PDF or CSV, review them, then add them to your budget."
       />
       <div className="grid gap-10">
         <Suspense fallback={<LoadingBlock />}>
