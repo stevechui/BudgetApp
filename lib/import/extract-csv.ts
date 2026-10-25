@@ -13,21 +13,38 @@ export type CsvExtraction = {
   recordCount: number;
 };
 
+function quoteEndsField(text: string, index: number, delimiter: string | null) {
+  let next = index + 1;
+  while (text[next] === " " || text[next] === "\t") next++;
+  return (
+    next === text.length ||
+    (delimiter === null ? ",;\t".includes(text[next]) : text[next] === delimiter) ||
+    text[next] === "\n" ||
+    text[next] === "\r"
+  );
+}
+
 function detectDelimiter(input: string) {
   const text = input.replace(/^\uFEFF/, "");
   const counts = new Map([[",", 0], [";", 0], ["\t", 0]]);
   let quoted = false;
+  let fieldStart = true;
 
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     if (char === '"' && quoted && text[i + 1] === '"') {
       i++;
-    } else if (char === '"') {
+    } else if (char === '"' && quoted && quoteEndsField(text, i, null)) {
+      quoted = false;
+    } else if (char === '"' && !quoted && fieldStart) {
       quoted = !quoted;
     } else if (!quoted && (char === "\n" || char === "\r")) {
       break;
     } else if (!quoted && counts.has(char)) {
       counts.set(char, counts.get(char)! + 1);
+      fieldStart = true;
+    } else if (!quoted && char !== " " && char !== "\t") {
+      fieldStart = false;
     }
   }
 
@@ -40,7 +57,7 @@ function readRecords(input: string, delimiter: string): string[][] {
   let record: string[] = [];
   let field = "";
   let quoted = false;
-  let afterQuote = false;
+  let fieldStart = true;
 
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
@@ -48,37 +65,31 @@ function readRecords(input: string, delimiter: string): string[][] {
       if (char === '"' && text[i + 1] === '"') {
         field += '"';
         i++;
-      } else if (char === '"') {
+      } else if (char === "\\" && text[i + 1] === '"') {
+        field += '"';
+        i++;
+      } else if (char === '"' && quoteEndsField(text, i, delimiter)) {
         quoted = false;
-        afterQuote = true;
       } else {
         field += char;
       }
-    } else if (afterQuote && (char === " " || char === "\t")) {
-      continue;
-    } else if (
-      afterQuote &&
-      char !== delimiter &&
-      char !== "\n" &&
-      char !== "\r"
-    ) {
-      throw new CsvImportError("This CSV contains an unexpected quote.");
-    } else if (char === '"') {
-      if (field.length > 0) throw new CsvImportError("This CSV contains an unexpected quote.");
+    } else if (char === '"' && fieldStart) {
+      field = "";
       quoted = true;
     } else if (char === delimiter) {
       record.push(field);
       field = "";
-      afterQuote = false;
+      fieldStart = true;
     } else if (char === "\n" || char === "\r") {
       record.push(field);
       records.push(record);
       record = [];
       field = "";
-      afterQuote = false;
+      fieldStart = true;
       if (char === "\r" && text[i + 1] === "\n") i++;
     } else {
       field += char;
+      if (char !== " " && char !== "\t") fieldStart = false;
     }
   }
 

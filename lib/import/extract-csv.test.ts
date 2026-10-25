@@ -76,6 +76,30 @@ describe("extractCsv", () => {
     ]);
   });
 
+  it("accepts literal quotes in unquoted and imperfectly quoted bank fields", () => {
+    const extracted = extractCsv(
+      [
+        "Date,Description,Amount",
+        '2026-01-05,SHOP "A",12.00',
+        '2026-01-06,"CAFE "NORTH" LLC",8.00',
+        '2026-01-07,  "QUOTED PAYEE"  ,4.00',
+        '2026-01-08,"BACKSLASH \\"QUOTE\\"",3.00',
+      ].join("\n"),
+    );
+    const parsed = parseStatement(extracted.lines, DEFAULT_CONFIG, {
+      detectedColumns: extracted.columns,
+      headerLineId: extracted.headerLineId,
+      today: new Date("2026-02-10T00:00:00.000Z"),
+    });
+
+    expect(parsed.rows.map(({ description, amount }) => [description, amount])).toEqual([
+      ['SHOP "A"', "12.00"],
+      ['CAFE "NORTH" LLC', "8.00"],
+      ["QUOTED PAYEE", "4.00"],
+      ['BACKSLASH "QUOTE"', "3.00"],
+    ]);
+  });
+
   it.each([
     ["", "header row"],
     ["Date,Description,Amount\n", "No transaction rows"],
@@ -85,10 +109,7 @@ describe("extractCsv", () => {
     expect(() => extractCsv(input)).toThrow(new RegExp(message));
   });
 
-  it("rejects quotes that do not begin a field", () => {
-    expect(() => extractCsv('Date,Description,Amount\n2026-01-01,Shop "A",5.00')).toThrow(
-      CsvImportError,
-    );
+  it("rejects unclosed quoted fields", () => {
     expect(() => extractCsv('Date,Description,Amount\n2026-01-01,"Shop"x,5.00')).toThrow(
       CsvImportError,
     );
