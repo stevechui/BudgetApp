@@ -61,7 +61,7 @@ export const importSchema = z.object({
 const columnSchema = z.object({
   label: z.string().max(80),
   kind: z.enum(["text", "money"]),
-  role: z.enum(["date", "description", "debit", "credit", "amount", "balance", "ignore"]),
+  role: z.enum(["date", "description", "category", "debit", "credit", "amount", "balance", "ignore"]),
   x0: z.number(),
   x1: z.number(),
 });
@@ -72,6 +72,8 @@ export const templateConfigSchema = z.object({
   signMode: z.enum(["auto", "columns", "signed", "suffix"]),
   flipDirection: z.boolean(),
   skipPatterns: z.array(z.string().trim().min(1).max(100)).max(50),
+  /** Normalized CSV category value -> category id */
+  categoryMap: z.record(z.string().max(100), z.number().int().positive()).default({}),
 });
 
 export const templateSchema = z.object({

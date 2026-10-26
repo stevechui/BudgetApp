@@ -19,9 +19,17 @@ export type Line = {
 };
 
 export type ColumnKind = "text" | "money";
-export type ColumnRole = "date" | "description" | "debit" | "credit" | "amount" | "balance" | "ignore";
+export type ColumnRole =
+  | "date"
+  | "description"
+  | "category"
+  | "debit"
+  | "credit"
+  | "amount"
+  | "balance"
+  | "ignore";
 
-export const TEXT_ROLES = ["date", "description", "ignore"] as const satisfies ColumnRole[];
+export const TEXT_ROLES = ["date", "description", "category", "ignore"] as const satisfies ColumnRole[];
 export const MONEY_ROLES = ["debit", "credit", "amount", "balance", "ignore"] as const satisfies ColumnRole[];
 
 export type Column = {
@@ -51,6 +59,8 @@ export type TemplateConfig = {
   flipDirection: boolean;
   /** Case-insensitive substrings; lines containing any of them are skipped */
   skipPatterns: string[];
+  /** Normalized CSV category value (see normalizeCategoryLabel) -> category id */
+  categoryMap: Record<string, number>;
 };
 
 export const DEFAULT_CONFIG: TemplateConfig = {
@@ -59,6 +69,7 @@ export const DEFAULT_CONFIG: TemplateConfig = {
   signMode: "auto",
   flipDirection: false,
   skipPatterns: [],
+  categoryMap: {},
 };
 
 export type Direction = "CREDIT" | "DEBIT";
@@ -83,6 +94,8 @@ export type DraftRow = {
   amountCandidates: AmountCandidate[];
   direction: Direction;
   balanceCents: number | null;
+  /** Text from a column mapped to the Category role, or "" */
+  sourceCategory: string;
   sourceLines: number[];
   warnings: string[];
 };

@@ -61,6 +61,38 @@ describe("extractCsv", () => {
     ])).toEqual([["2026-01-05", "ONLINE PAYMENT", "14.99", "DEBIT"]]);
   });
 
+  it("maps a Category column and carries its value onto each row", () => {
+    const extracted = extractCsv(
+      [
+        "Date,Description,Transaction Category,Amount",
+        "2026-01-05,STARBUCKS #12,Food & Drink,-5.25",
+        "2026-01-06,PAYROLL ACME,,2000.00",
+        '2026-01-07,SHELL OIL,"Auto & Transport > Gas",-40.00',
+      ].join("\n"),
+    );
+
+    expect(extracted.columns.map(({ label, role, kind }) => [label, role, kind])).toEqual([
+      ["Date", "date", "text"],
+      ["Description", "description", "text"],
+      ["Transaction Category", "category", "text"],
+      ["Amount", "amount", "money"],
+    ]);
+    const parsed = parseStatement(extracted.lines, DEFAULT_CONFIG, {
+      detectedColumns: extracted.columns,
+      headerLineId: extracted.headerLineId,
+      today: new Date("2026-02-10T00:00:00.000Z"),
+    });
+    expect(parsed.rows.map(({ description, sourceCategory, amount }) => [
+      description,
+      sourceCategory,
+      amount,
+    ])).toEqual([
+      ["STARBUCKS #12", "Food & Drink", "5.25"],
+      ["PAYROLL ACME", "", "2000.00"],
+      ["SHELL OIL", "Auto & Transport > Gas", "40.00"],
+    ]);
+  });
+
   it("detects semicolon-delimited bank exports and ignores ISO date timestamps", () => {
     const extracted = extractCsv(
       "Date;Payee;Amount\n2026-01-05T00:00:00.000Z;GROCERY;12.00",

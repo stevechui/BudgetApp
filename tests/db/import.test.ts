@@ -8,6 +8,7 @@ import {
   updateTemplate,
 } from "@/lib/actions/import";
 import { DEFAULT_CONFIG } from "@/lib/import/types";
+import { getImportContext } from "@/lib/queries";
 import { db, expectNotRevalidated, expectRevalidated, makeTransaction, seedBasics } from "./helpers";
 
 const row = (categoryId: number, overrides: Record<string, string> = {}) => ({
@@ -198,6 +199,34 @@ describe("statement templates", () => {
 
     await db.account.delete({ where: { id: card.id } });
     expect((await stored()).accountId).toBeNull();
+  });
+
+  it("stores CSV category mappings and loads them back for the importer", async () => {
+    const { groceries } = await seedBasics();
+    const config = { ...DEFAULT_CONFIG, categoryMap: { supermarket: groceries.id } };
+    const saved = await saveTemplate({ ...template, config });
+    if (!saved.ok) throw new Error(saved.error);
+
+    const stored = await db.statementTemplate.findUniqueOrThrow({ where: { id: saved.id } });
+    expect(JSON.parse(stored.config).categoryMap).toEqual({ supermarket: groceries.id });
+    const { templates } = await getImportContext();
+    expect(templates[0].config.categoryMap).toEqual({ supermarket: groceries.id });
+  });
+
+  it("loads templates saved before category mapping existed", async () => {
+    const legacy: Partial<typeof DEFAULT_CONFIG> = { ...DEFAULT_CONFIG };
+    delete legacy.categoryMap;
+    await db.statementTemplate.create({
+      data: { name: "Old", fingerprint: "Old Bank", config: JSON.stringify(legacy) },
+    });
+    const { templates } = await getImportContext();
+    expect(templates).toHaveLength(1);
+    expect(templates[0].config).toEqual(DEFAULT_CONFIG);
+  });
+
+  it("rejects a category mapping to an invalid id", async () => {
+    const res = await saveTemplate({ ...template, config: { ...DEFAULT_CONFIG, categoryMap: { x: 0 } } });
+    expect(res.ok).toBe(false);
   });
 
   it("rejects a duplicate name and a short fingerprint", async () => {

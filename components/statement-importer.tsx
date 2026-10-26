@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FileTextIcon, PlusIcon, ScanTextIcon, UploadIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AccountSelect, type AccountOption } from "@/components/account-select";
 import { CategorySelect, type CategoryOption } from "@/components/category-select";
+import { ImportCategoryMap, type SourceCategoryValue } from "@/components/import-category-map";
 import { ImportRawLines } from "@/components/import-raw-lines";
 import { ImportReviewTable } from "@/components/import-review-table";
 import { ImportSettings, type ImportTemplate } from "@/components/import-settings";
@@ -20,6 +21,7 @@ import { findPossibleDuplicates, importTransactions, undoImport } from "@/lib/ac
 import { formatCents, formatDay, inputToDate } from "@/lib/format";
 import type { ExistingTransaction } from "@/lib/import/duplicates";
 import type { ExtractProgress, PageInfo } from "@/lib/import/extract-pdf";
+import { createCategoryMatcher, normalizeCategoryLabel } from "@/lib/import/category-match";
 import { CsvImportError, extractCsv } from "@/lib/import/extract-csv";
 import { groupLines } from "@/lib/import/lines";
 import { parseStatement, suggestSkipPattern } from "@/lib/import/parse";
@@ -101,14 +103,53 @@ export function StatementImporter({
     [extraction, config, forced],
   );
   const suggest = useMemo(() => createSuggester(history, categories), [history, categories]);
+  const matchCategory = useMemo(() => createCategoryMatcher(categories), [categories]);
+  const sourceCategories = useMemo(() => {
+    const categoryIds = new Set(categories.map((c) => c.id));
+    const values = new Map<string, SourceCategoryValue>();
+    for (const draft of result?.rows ?? []) {
+      const key = normalizeCategoryLabel(draft.sourceCategory);
+      if (!key) continue;
+      const existingValue = values.get(key);
+      if (existingValue) {
+        existingValue.count++;
+        continue;
+      }
+      // A saved mapping may point at a category deleted since the template was saved
+      const saved = config.categoryMap[key];
+      values.set(key, {
+        key,
+        label: draft.sourceCategory.trim(),
+        count: 1,
+        savedId: saved !== undefined && categoryIds.has(saved) ? saved : null,
+        match: matchCategory(draft.sourceCategory),
+      });
+    }
+    return values;
+  }, [result, config.categoryMap, categories, matchCategory]);
+  const mapCategory = useCallback(
+    (value: string) => {
+      const entry = sourceCategories.get(normalizeCategoryLabel(value));
+      return entry ? (entry.savedId ?? entry.match?.categoryId ?? null) : null;
+    },
+    [sourceCategories],
+  );
   // Ignore results fetched for a previously chosen account
   const existing = fetched.accountId === accountId ? fetched.rows : NO_EXISTING;
   const rows = useMemo(
     () =>
       result
-        ? buildReviewRows({ drafts: result.rows, manualRows, deleted, edits, suggest, existing })
+        ? buildReviewRows({
+            drafts: result.rows,
+            manualRows,
+            deleted,
+            edits,
+            suggest,
+            mapCategory,
+            existing,
+          })
         : [],
-    [result, manualRows, deleted, edits, suggest, existing],
+    [result, manualRows, deleted, edits, suggest, mapCategory, existing],
   );
 
   const dates = rows.map((r) => r.date).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
@@ -424,6 +465,23 @@ export function StatementImporter({
         accountId={accountId}
         showColumnCoordinates={extraction.source === "pdf"}
       />
+
+      {sourceCategories.size > 0 && (
+        <ImportCategoryMap
+          values={[...sourceCategories.values()].sort(
+            (a, b) => b.count - a.count || a.label.localeCompare(b.label),
+          )}
+          categories={categories}
+          onMap={(key, categoryId) =>
+            setConfig({ ...config, categoryMap: { ...config.categoryMap, [key]: categoryId } })
+          }
+          onClear={(key) => {
+            const categoryMap = { ...config.categoryMap };
+            delete categoryMap[key];
+            setConfig({ ...config, categoryMap });
+          }}
+        />
+      )}
 
       <Tabs defaultValue="review">
         <TabsList>

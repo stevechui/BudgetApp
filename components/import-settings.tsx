@@ -49,6 +49,7 @@ export type ImportTemplate = {
 const ROLE_LABELS: Record<ColumnRole, string> = {
   date: "Date",
   description: "Description",
+  category: "Category",
   debit: "Debit (money out)",
   credit: "Credit (money in)",
   amount: "Signed amount",

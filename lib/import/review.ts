@@ -22,7 +22,9 @@ export type ReviewRow = RowValues & {
   amountCandidates: AmountCandidate[];
   balanceCents: number | null;
   sourceLines: number[];
-  suggestion: Suggestion["match"] | null;
+  sourceCategory: string;
+  /** "csv" when the category came from the file's Category column */
+  suggestion: Suggestion["match"] | "csv" | null;
   duplicate: ExistingTransaction | null;
   warnings: string[];
   errors: string[];
@@ -46,6 +48,7 @@ export function toTransactionInput(row: RowValues) {
 /**
  * Combines parsed rows with the user's edits, then fills in category suggestions,
  * duplicate flags and validation errors. Rows flagged as duplicates start unchecked.
+ * Category precedence: the row's own edit, then the file's category column, then history.
  */
 export function buildReviewRows({
   drafts,
@@ -53,6 +56,7 @@ export function buildReviewRows({
   deleted,
   edits,
   suggest,
+  mapCategory = () => null,
   existing,
 }: {
   drafts: DraftRow[];
@@ -60,6 +64,8 @@ export function buildReviewRows({
   deleted: ReadonlySet<string>;
   edits: Record<string, RowEdit>;
   suggest: (description: string, direction: Direction) => Suggestion | null;
+  /** Category id for a value from the file's category column, or null when unmapped */
+  mapCategory?: (sourceCategory: string) => number | null;
   existing: ExistingTransaction[];
 }): ReviewRow[] {
   const all = [
@@ -78,8 +84,12 @@ export function buildReviewRows({
     let categoryId = edit.categoryId ?? "";
     let suggestion: ReviewRow["suggestion"] = null;
     if (edit.categoryId === undefined) {
-      const s = suggest(description, direction);
-      if (s) {
+      const mapped = draft.sourceCategory.trim() ? mapCategory(draft.sourceCategory) : null;
+      const s = mapped === null ? suggest(description, direction) : null;
+      if (mapped !== null) {
+        categoryId = String(mapped);
+        suggestion = "csv";
+      } else if (s) {
         categoryId = String(s.categoryId);
         suggestion = s.match;
       }
@@ -107,6 +117,7 @@ export function buildReviewRows({
       amountCandidates: draft.amountCandidates,
       balanceCents: draft.balanceCents,
       sourceLines: draft.sourceLines,
+      sourceCategory: draft.sourceCategory,
       suggestion,
       duplicate,
       warnings: draft.warnings,
@@ -128,6 +139,7 @@ export function blankRow(date: string): DraftRow {
     amountCandidates: [],
     direction: "DEBIT",
     balanceCents: null,
+    sourceCategory: "",
     sourceLines: [],
     warnings: [],
   };

@@ -89,6 +89,7 @@ function leadingDate(words: Word[], format: Exclude<DateFormat, "auto">): Leadin
 
 type LineParts = {
   description: Word[];
+  category: Word[];
   debit: Money[];
   credit: Money[];
   amount: Money[];
@@ -100,7 +101,7 @@ function isAmountRole(role: ColumnRole): role is "debit" | "credit" | "amount" |
 }
 
 function splitLine(words: Word[], columns: Column[]): LineParts {
-  const parts: LineParts = { description: [], debit: [], credit: [], amount: [], balance: [] };
+  const parts: LineParts = { description: [], category: [], debit: [], credit: [], amount: [], balance: [] };
   const hasTextColumns = columns.some((c) => c.kind === "text");
   for (const w of words) {
     const money = parseMoney(w.text);
@@ -125,6 +126,7 @@ function splitLine(words: Word[], columns: Column[]): LineParts {
       }
     }
     if (!col || col.role === "description") parts.description.push(w);
+    else if (col.role === "category") parts.category.push(w);
   }
   return parts;
 }
@@ -262,6 +264,7 @@ export function parseStatement(
       amountCandidates,
       direction,
       balanceCents: bal ? (bal.negative || bal.suffix === "DR" ? -bal.cents : bal.cents) : null,
+      sourceCategory: parts.category.map((w) => w.text).join(" "),
       sourceLines: [line.id, ...extraLines.map((l) => l.id)],
       warnings,
     };
@@ -288,6 +291,7 @@ export function parseStatement(
         pushRow(prev.line, prev.lead, {
           ...parts,
           description: [...prev.parts.description, ...parts.description],
+          category: [...prev.parts.category, ...parts.category],
         }, [line]);
         continue;
       }

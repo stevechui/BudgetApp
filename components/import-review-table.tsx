@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangleIcon, CopyIcon, SparklesIcon, Trash2Icon } from "lucide-react";
+import { AlertTriangleIcon, CopyIcon, FileSpreadsheetIcon, SparklesIcon, Trash2Icon } from "lucide-react";
 import { CategorySelect, type CategoryOption } from "@/components/category-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -169,11 +169,21 @@ export function ImportReviewTable({
                     placeholder="Pick a category"
                     className={cn(r.include && !r.categoryId && "border-rose-400")}
                   />
-                  {r.suggestion && (
+                  {r.suggestion === "csv" ? (
+                    <Badge variant="secondary" className="mt-1 gap-1" title={`CSV category: ${r.sourceCategory}`}>
+                      <FileSpreadsheetIcon className="size-3" />
+                      From CSV
+                    </Badge>
+                  ) : r.suggestion ? (
                     <Badge variant="secondary" className="mt-1 gap-1">
                       <SparklesIcon className="size-3" />
                       Suggested{r.suggestion === "similar" ? " (similar)" : ""}
                     </Badge>
+                  ) : null}
+                  {r.sourceCategory && r.suggestion !== "csv" && (
+                    <p className="mt-1 truncate text-xs text-muted-foreground" title={r.sourceCategory}>
+                      CSV: {r.sourceCategory}
+                    </p>
                   )}
                 </TableCell>
                 <TableCell className="pt-2">

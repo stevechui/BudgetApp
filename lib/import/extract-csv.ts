@@ -116,6 +116,7 @@ function headerRole(label: string): ColumnRole | null {
     return "date";
   }
   if (/\b(balance|available balance|running balance)\b/i.test(label)) return "balance";
+  if (/\b(category|categories)\b/i.test(label)) return "category";
   if (/\b(credit|credits|deposit|deposits|received|money in|paid in)\b/i.test(label)) return "credit";
   if (/\b(debit|debits|withdrawal|withdrawals|spent|money out|paid out|charge|charges)\b/i.test(label)) return "debit";
   if (/\b(amount|transaction amount|value)\b/i.test(label)) return "amount";
