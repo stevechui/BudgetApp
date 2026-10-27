@@ -7,7 +7,7 @@ export function revalidateAll() {
   revalidatePath("/", "layout");
 }
 
-export function handleDbError(e: unknown, what: string): ActionResult {
+export function handleDbError(e: unknown, what: string): Extract<ActionResult, { ok: false }> {
   if (e instanceof Prisma.PrismaClientKnownRequestError) {
     if (e.code === "P2002") {
       const article = /^[aeiou]/i.test(what) ? "An" : "A";

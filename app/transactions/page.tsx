@@ -104,6 +104,7 @@ async function TransactionsContent({
         accounts={accounts}
       />
       <TransactionsTable
+        key={result.rows.map((row) => row.id).join(",")}
         categories={categories}
         accounts={accounts}
         rows={result.rows.map((t) => ({

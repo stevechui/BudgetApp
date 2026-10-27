@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   createTransaction,
   deleteTransaction,
+  deleteTransactions,
   setTransactionCategory,
+  setTransactionsCategory,
   updateTransaction,
 } from "@/lib/actions/transactions";
 import { getRecentTransactions, getTransactions, PAGE_SIZE } from "@/lib/queries";
@@ -187,6 +189,53 @@ describe("setTransactionCategory", () => {
   });
 });
 
+describe("setTransactionsCategory", () => {
+  it("updates the selected transactions and reports how many changed", async () => {
+    const { groceries, dining } = await seedBasics();
+    const first = await makeTransaction({
+      date: "2026-03-15",
+      description: "Safeway",
+      amountCents: 4250,
+      direction: "DEBIT",
+      categoryId: groceries.id,
+    });
+    const second = await makeTransaction({
+      date: "2026-03-16",
+      description: "Market",
+      amountCents: 2500,
+      direction: "DEBIT",
+      categoryId: groceries.id,
+    });
+
+    expect(await setTransactionsCategory([first.id, second.id, first.id], dining.id)).toEqual({
+      ok: true,
+      count: 2,
+    });
+    expect(
+      (await db.transaction.findMany({ orderBy: { id: "asc" } })).map((tx) => tx.categoryId),
+    ).toEqual([dining.id, dining.id]);
+    expectRevalidated();
+  });
+
+  it("rejects empty ids and invalid categories without changing transactions", async () => {
+    const { groceries } = await seedBasics();
+    const tx = await makeTransaction({
+      date: "2026-03-15",
+      description: "Safeway",
+      amountCents: 4250,
+      direction: "DEBIT",
+      categoryId: groceries.id,
+    });
+    expect(await setTransactionsCategory([], groceries.id)).toMatchObject({ ok: false });
+    expect(await setTransactionsCategory([tx.id], 0)).toMatchObject({ ok: false });
+    expect(await setTransactionsCategory([tx.id], 999)).toMatchObject({ ok: false });
+    expect((await db.transaction.findUniqueOrThrow({ where: { id: tx.id } })).categoryId).toBe(
+      groceries.id,
+    );
+    expectNotRevalidated();
+  });
+});
+
 describe("deleteTransaction", () => {
   it("deletes the transaction", async () => {
     const { groceries } = await seedBasics();
@@ -207,6 +256,38 @@ describe("deleteTransaction", () => {
       ok: false,
       error: "That transaction no longer exists",
     });
+  });
+});
+
+describe("deleteTransactions", () => {
+  it("deletes the selected transactions and reports how many were removed", async () => {
+    const { groceries } = await seedBasics();
+    const first = await makeTransaction({
+      date: "2026-03-15",
+      description: "Safeway",
+      amountCents: 4250,
+      direction: "DEBIT",
+      categoryId: groceries.id,
+    });
+    const second = await makeTransaction({
+      date: "2026-03-16",
+      description: "Market",
+      amountCents: 2500,
+      direction: "DEBIT",
+      categoryId: groceries.id,
+    });
+
+    expect(await deleteTransactions([first.id, second.id, first.id])).toEqual({
+      ok: true,
+      count: 2,
+    });
+    expect(await db.transaction.count()).toBe(0);
+    expectRevalidated();
+  });
+
+  it("rejects an empty selection", async () => {
+    expect(await deleteTransactions([])).toMatchObject({ ok: false });
+    expectNotRevalidated();
   });
 });
 
