@@ -8,13 +8,19 @@ import { LoadingBlock, PageHeader } from "@/components/page-header";
 import { ReportControls } from "@/components/report-controls";
 import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { defaultRange, parseDay, PERIODS, type Period } from "@/lib/report-math";
+import { averagePerPeriod, defaultRange, parseDay, PERIODS, type Period } from "@/lib/report-math";
 import { getSeries } from "@/lib/reports";
 
 const PERIOD_LABEL: Record<Period, string> = {
   week: "Weekly",
   month: "Monthly",
   quarter: "Quarterly",
+};
+
+const PERIOD_UNIT: Record<Period, string> = {
+  week: "week",
+  month: "month",
+  quarter: "quarter",
 };
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -47,6 +53,7 @@ async function ReportsContent({ searchParams }: Pick<PageProps<"/reports">, "sea
 
   const breakdownKind = show === "income" ? "income" : "expense";
   const data = await getSeries({ period, from, to, groupBy: "group", groupKind: breakdownKind });
+  const averages = averagePerPeriod(data.series);
   const rangeLabel = `${format(from, "MMM d, yyyy")} – ${format(to, "MMM d, yyyy")}`;
 
   return (
@@ -62,10 +69,20 @@ async function ReportsContent({ searchParams }: Pick<PageProps<"/reports">, "sea
         }}
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard label="Income" cents={data.totals.income} tone="income" />
         <StatCard label="Expense" cents={data.totals.expense} tone="expense" />
         <StatCard label="Net" cents={data.totals.net} tone="net" />
+        <StatCard
+          label={`Average income / ${PERIOD_UNIT[period]}`}
+          cents={averages.income}
+          tone="income"
+        />
+        <StatCard
+          label={`Average expense / ${PERIOD_UNIT[period]}`}
+          cents={averages.expense}
+          tone="expense"
+        />
       </div>
 
       <Card>

@@ -21,7 +21,12 @@ import { ACCOUNT_TYPE_LABELS, formatCents } from "@/lib/format";
 import type { AccountType } from "@/lib/generated/prisma/enums";
 import { cn } from "@/lib/utils";
 
-export type AccountRow = AccountValue & { balanceCents: number; transactionCount: number };
+export type AccountRow = AccountValue & {
+  balanceCents: number;
+  transactionCount: number;
+  latestTransactionDate: string | null;
+  lastImportDate: string | null;
+};
 
 export function AccountsTable({ accounts }: { accounts: AccountRow[] }) {
   const grouped = (Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[])
@@ -46,6 +51,8 @@ export function AccountsTable({ accounts }: { accounts: AccountRow[] }) {
               <TableHead>Name</TableHead>
               <TableHead>Institution</TableHead>
               <TableHead className="text-right">Transactions</TableHead>
+              <TableHead>Latest transaction</TableHead>
+              <TableHead>Last import</TableHead>
               <TableHead className="text-right">Balance</TableHead>
               <TableHead className="w-24" />
             </TableRow>
@@ -53,7 +60,7 @@ export function AccountsTable({ accounts }: { accounts: AccountRow[] }) {
           <TableBody>
             {grouped.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                   No accounts yet.
                 </TableCell>
               </TableRow>
@@ -82,7 +89,7 @@ function TypeRows({
     <>
       <TableRow className="bg-muted/50 hover:bg-muted/50">
         <TableCell
-          colSpan={3}
+          colSpan={5}
           className="py-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
         >
           {ACCOUNT_TYPE_LABELS[type]}
@@ -103,6 +110,10 @@ function TypeRows({
           <TableCell className="text-right tabular-nums text-muted-foreground">
             {a.transactionCount}
           </TableCell>
+          <TableCell className="text-muted-foreground">
+            {a.latestTransactionDate ?? "—"}
+          </TableCell>
+          <TableCell className="text-muted-foreground">{a.lastImportDate ?? "—"}</TableCell>
           <TableCell
             className={cn(
               "text-right font-medium tabular-nums",

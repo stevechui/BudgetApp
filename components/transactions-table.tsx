@@ -162,7 +162,7 @@ export function TransactionsTable({
                 />
               </TableHead>
               <TableHead className="w-32">Date</TableHead>
-              <TableHead>Description</TableHead>
+              <TableHead className="min-w-80">Description</TableHead>
               <TableHead className="w-44">Account</TableHead>
               <TableHead className="w-60">Category</TableHead>
               <TableHead className="w-32 text-right">Amount</TableHead>
@@ -196,7 +196,9 @@ export function TransactionsTable({
                   />
                 </TableCell>
                 <TableCell className="text-muted-foreground">{t.displayDate}</TableCell>
-                <TableCell className="max-w-72 truncate font-medium">{t.description}</TableCell>
+                <TableCell className="min-w-80 max-w-[36rem] truncate font-medium">
+                  {t.description}
+                </TableCell>
                 <TableCell className="max-w-44 truncate text-muted-foreground">
                   {t.accountName}
                 </TableCell>

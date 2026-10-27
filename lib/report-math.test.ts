@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  averagePerPeriod,
   buildBreakdown,
   buildGroupSeries,
   buildSeries,
@@ -56,6 +57,22 @@ describe("totals", () => {
       tx("2026-01-10", 20000, "DEBIT", salary),
     ]);
     expect(result.income).toBe(480000);
+  });
+});
+
+describe("averagePerPeriod", () => {
+  it("averages totals across selected periods, including periods with no activity", () => {
+    expect(
+      averagePerPeriod([
+        { key: "2026-01-01", label: "Jan", income: 10001, expense: 5000, net: 5001 },
+        { key: "2026-02-01", label: "Feb", income: 0, expense: 0, net: 0 },
+        { key: "2026-03-01", label: "Mar", income: 20000, expense: 10000, net: 10000 },
+      ]),
+    ).toEqual({ income: 10000, expense: 5000 });
+  });
+
+  it("returns zero averages when the selected range has no periods", () => {
+    expect(averagePerPeriod([])).toEqual({ income: 0, expense: 0 });
   });
 });
 

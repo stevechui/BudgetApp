@@ -117,7 +117,7 @@ export function TransactionForm({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-xl">
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{transaction ? "Edit transaction" : "New transaction"}</DialogTitle>

@@ -56,7 +56,7 @@ export function ImportReviewTable({
               />
             </TableHead>
             <TableHead className="w-40">Date</TableHead>
-            <TableHead>Description</TableHead>
+            <TableHead className="min-w-80">Description</TableHead>
             <TableHead className="w-32">Amount</TableHead>
             <TableHead className="w-28">Direction</TableHead>
             <TableHead className="w-60">Category</TableHead>
@@ -104,7 +104,7 @@ export function ImportReviewTable({
                     aria-invalid={r.include && !r.date}
                   />
                 </TableCell>
-                <TableCell className="whitespace-normal">
+                <TableCell className="min-w-80 whitespace-normal">
                   <Input
                     value={r.description}
                     onChange={(e) => onEdit(r.key, { description: e.target.value })}

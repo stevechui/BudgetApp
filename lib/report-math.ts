@@ -103,6 +103,22 @@ export function totals(transactions: ReportTransaction[]) {
   return { income, expense, net: income - expense };
 }
 
+/** Average income and expense across the selected series buckets, including empty periods. */
+export function averagePerPeriod(series: SeriesPoint[]) {
+  if (series.length === 0) return { income: 0, expense: 0 };
+  const total = series.reduce(
+    (sum, point) => ({
+      income: sum.income + point.income,
+      expense: sum.expense + point.expense,
+    }),
+    { income: 0, expense: 0 },
+  );
+  return {
+    income: Math.round(total.income / series.length),
+    expense: Math.round(total.expense / series.length),
+  };
+}
+
 export function buildSeries(
   transactions: ReportTransaction[],
   { period, from, to }: { period: Period; from: Date; to: Date },

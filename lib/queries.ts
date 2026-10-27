@@ -26,16 +26,39 @@ export async function getCategories() {
 /** Accounts ordered by name, each with its current balance and transaction count. */
 export async function getAccounts() {
   await connection();
-  const [accounts, totals] = await Promise.all([
+  const [accounts, totals, latestTransactions, importedTransactions] = await Promise.all([
     db.account.findMany({ orderBy: { name: "asc" } }),
     db.transaction.groupBy({
       by: ["accountId", "direction"],
       _sum: { amountCents: true },
       _count: { _all: true },
     }),
+    db.transaction.groupBy({
+      by: ["accountId"],
+      _max: { date: true },
+    }),
+    db.transaction.findMany({
+      where: { importBatchId: { not: null } },
+      select: { accountId: true, importBatch: { select: { createdAt: true } } },
+      orderBy: [{ importBatch: { createdAt: "desc" } }, { accountId: "asc" }],
+    }),
   ]);
+  const latestDateByAccount = new Map(
+    latestTransactions.map((row) => [row.accountId, row._max.date]),
+  );
+  const lastImportByAccount = new Map<number, Date>();
+  for (const transaction of importedTransactions) {
+    if (transaction.importBatch && !lastImportByAccount.has(transaction.accountId)) {
+      lastImportByAccount.set(transaction.accountId, transaction.importBatch.createdAt);
+    }
+  }
+  const accountsWithActivity = accounts.map((account) => ({
+    ...account,
+    latestTransactionDate: latestDateByAccount.get(account.id) ?? null,
+    lastImportDate: lastImportByAccount.get(account.id) ?? null,
+  }));
   return withBalances(
-    accounts,
+    accountsWithActivity,
     totals.map((t) => ({
       accountId: t.accountId,
       direction: t.direction,

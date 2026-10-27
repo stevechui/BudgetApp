@@ -123,33 +123,57 @@ describe("deleteAccount", () => {
 });
 
 describe("getAccounts", () => {
-  it("returns balances and transaction counts", async () => {
+  it("returns balances, transaction counts and account activity dates", async () => {
     const { salary, groceries } = await seedBasics();
     const savings = await makeAccount("Savings", "SAVINGS", 100000);
     const [checking, card] = await Promise.all([
       db.account.findUniqueOrThrow({ where: { name: "Checking" } }),
       db.account.findUniqueOrThrow({ where: { name: "Visa" } }),
     ]);
-    const add = (accountId: number, amountCents: number, direction: "CREDIT" | "DEBIT") =>
+    const add = (
+      accountId: number,
+      amountCents: number,
+      direction: "CREDIT" | "DEBIT",
+      date = "2026-03-01",
+      importBatchId?: number,
+    ) =>
       makeTransaction({
-        date: "2026-03-01",
+        date,
         description: "x",
         amountCents,
         direction,
         categoryId: direction === "CREDIT" ? salary.id : groceries.id,
         accountId,
+        importBatchId,
       });
     await add(checking.id, 300000, "CREDIT");
-    await add(checking.id, 50000, "DEBIT");
-    await add(card.id, 12000, "DEBIT");
-    await add(card.id, 2000, "DEBIT");
+    const oldImport = await db.importBatch.create({
+      data: { fileName: "old.csv", createdAt: new Date("2026-03-02T10:00:00.000Z") },
+    });
+    const recentImport = await db.importBatch.create({
+      data: { fileName: "recent.csv", createdAt: new Date("2026-03-10T10:00:00.000Z") },
+    });
+    await add(checking.id, 50000, "DEBIT", "2026-03-05", oldImport.id);
+    await add(checking.id, 1000, "DEBIT", "2026-03-20", recentImport.id);
+    await add(card.id, 12000, "DEBIT", "2026-03-04");
+    await add(card.id, 2000, "DEBIT", "2026-03-06");
 
     const accounts = await getAccounts();
     expect(accounts.map((a) => [a.name, a.balanceCents, a.transactionCount])).toEqual([
-      ["Checking", 250000, 2],
+      ["Checking", 249000, 3],
       ["Savings", 100000, 0],
       ["Visa", -14000, 2],
     ]);
     expect(accounts.find((a) => a.id === savings.id)?.type).toBe("SAVINGS");
+    expect(
+      accounts.map((a) => [
+        a.latestTransactionDate?.toISOString() ?? null,
+        a.lastImportDate?.toISOString() ?? null,
+      ]),
+    ).toEqual([
+      ["2026-03-20T00:00:00.000Z", "2026-03-10T10:00:00.000Z"],
+      [null, null],
+      ["2026-03-06T00:00:00.000Z", null],
+    ]);
   });
 });

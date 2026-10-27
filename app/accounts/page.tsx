@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { AccountsTable } from "@/components/accounts-table";
 import { LoadingBlock, PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
+import { formatDay } from "@/lib/format";
 import { getAccounts } from "@/lib/queries";
 
 export default function AccountsPage() {
@@ -39,6 +40,8 @@ async function AccountsContent() {
           openingBalanceCents: a.openingBalanceCents,
           balanceCents: a.balanceCents,
           transactionCount: a.transactionCount,
+          latestTransactionDate: a.latestTransactionDate ? formatDay(a.latestTransactionDate) : null,
+          lastImportDate: a.lastImportDate ? formatDay(a.lastImportDate) : null,
         }))}
       />
     </div>
