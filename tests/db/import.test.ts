@@ -8,7 +8,7 @@ import {
   updateTemplate,
 } from "@/lib/actions/import";
 import { DEFAULT_CONFIG } from "@/lib/import/types";
-import { getImportContext } from "@/lib/queries";
+import { getImportBatches, getImportContext } from "@/lib/queries";
 import { db, expectNotRevalidated, expectRevalidated, makeTransaction, seedBasics } from "./helpers";
 
 const row = (categoryId: number, overrides: Record<string, string> = {}) => ({
@@ -128,6 +128,27 @@ describe("undoImport", () => {
 
   it("reports a missing batch", async () => {
     expect(await undoImport(999)).toEqual({ ok: false, error: "That import no longer exists" });
+  });
+});
+
+describe("getImportBatches", () => {
+  it("limits the import page list and can return the complete history", async () => {
+    const { groceries, checking } = await seedBasics();
+    for (let i = 0; i < 21; i++) {
+      const imported = await importTransactions({
+        fileName: `statement-${i}.csv`,
+        accountId: checking.id,
+        rows: [row(groceries.id)],
+      });
+      if (!imported.ok) throw new Error(imported.error);
+    }
+
+    const recent = await getImportBatches();
+    const all = await getImportBatches(true);
+    expect(recent).toHaveLength(20);
+    expect(all).toHaveLength(21);
+    expect(all[0].createdAt.getTime()).toBeGreaterThanOrEqual(all[20].createdAt.getTime());
+    expect(all.every((batch) => batch.accountName === "Checking")).toBe(true);
   });
 });
 

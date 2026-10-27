@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { ConfirmDelete } from "@/components/confirm-delete";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -19,11 +21,29 @@ export type ImportBatchRow = {
   accountName: string | null;
 };
 
-export function ImportHistory({ batches }: { batches: ImportBatchRow[] }) {
-  if (batches.length === 0) return null;
+export function ImportHistory({
+  batches,
+  showEmpty = false,
+}: {
+  batches: ImportBatchRow[];
+  showEmpty?: boolean;
+}) {
+  if (batches.length === 0 && !showEmpty) return null;
   return (
     <div className="grid gap-2">
-      <h2 className="text-lg font-semibold">Import history</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold">Import history</h2>
+        {!showEmpty && (
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/import/history">View all history</Link>
+          </Button>
+        )}
+      </div>
+      {batches.length === 0 ? (
+        <p className="rounded-xl border bg-background p-8 text-center text-sm text-muted-foreground">
+          No import history yet.
+        </p>
+      ) : (
       <div className="rounded-xl border bg-background">
         <Table>
           <TableHeader>
@@ -56,6 +76,7 @@ export function ImportHistory({ batches }: { batches: ImportBatchRow[] }) {
           </TableBody>
         </Table>
       </div>
+      )}
     </div>
   );
 }

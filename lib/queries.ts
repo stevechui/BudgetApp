@@ -168,11 +168,11 @@ export async function getImportContext() {
   };
 }
 
-export async function getImportBatches() {
+export async function getImportBatches(all = false) {
   await connection();
   const batches = await db.importBatch.findMany({
     orderBy: { createdAt: "desc" },
-    take: 20,
+    ...(!all && { take: 20 }),
     include: {
       _count: { select: { transactions: true } },
       transactions: { take: 1, select: { account: { select: { name: true } } } },
