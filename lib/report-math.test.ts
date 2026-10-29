@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   averagePerPeriod,
   buildBreakdown,
+  buildCategorySeries,
   buildGroupSeries,
   buildSeries,
   defaultRange,
@@ -168,6 +169,22 @@ describe("buildBreakdown", () => {
       { group: "Food", category: "Dining Out", value: 2600 },
       { group: "Food", category: "Groceries", value: 1000 },
     ]);
+  });
+
+  describe("buildCategorySeries", () => {
+    it("tracks spending for selected categories by period", () => {
+      const result = buildCategorySeries(
+        [
+          tx("2026-01-02", 1000, "DEBIT", { ...groceries, id: 1 }),
+          tx("2026-01-03", 3000, "DEBIT", dining),
+        ],
+        { period: "month", from: parseDay("2026-01-01"), to: parseDay("2026-02-28") },
+        [1],
+      );
+      expect(result.categories).toEqual(["Groceries"]);
+      expect(result.rows[0].Groceries).toBe(1000);
+      expect(result.rows[1].Groceries).toBe(0);
+    });
   });
 });
 

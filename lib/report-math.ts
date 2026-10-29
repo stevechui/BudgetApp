@@ -18,6 +18,7 @@ export type ReportTransaction = {
   amountCents: number;
   direction: "CREDIT" | "DEBIT";
   category: {
+    id?: number;
     name: string;
     type: "CREDIT" | "DEBIT" | "TRANSFER";
     group: { name: string };
@@ -144,6 +145,39 @@ export type GroupSeries = {
   rows: ({ key: string; label: string } & Record<string, number | string>)[];
 };
 
+export type CategorySeries = {
+  categories: string[];
+  rows: ({ key: string; label: string } & Record<string, number | string>)[];
+};
+
+/** Spending by selected categories per period. */
+export function buildCategorySeries(
+  transactions: ReportTransaction[],
+  { period, from, to }: { period: Period; from: Date; to: Date },
+  categoryIds: number[],
+): CategorySeries {
+  const ids = new Set(categoryIds);
+  const names = new Map<number, string>();
+  const rows = new Map<string, CategorySeries["rows"][number]>();
+  for (const start of periodRange(from, to, period)) {
+    const key = periodKey(start);
+    rows.set(key, { key, label: periodLabel(start, period) });
+  }
+  for (const tx of transactions) {
+    const id = tx.category.id;
+    if (!id || !ids.has(id)) continue;
+    names.set(id, tx.category.name);
+    const row = rows.get(periodKey(periodStart(toLocalDay(tx.date), period)));
+    if (!row) continue;
+    const value = budgetImpact(tx).expense;
+    row[tx.category.name] = ((row[tx.category.name] as number | undefined) ?? 0) + value;
+  }
+  const categories = categoryIds.map((id) => names.get(id)).filter((name): name is string => Boolean(name));
+  const out = [...rows.values()];
+  for (const row of out) for (const category of categories) row[category] ??= 0;
+  return { categories, rows: out };
+}
+
 /** Expense per category group per period, for stacked charts. */
 export function buildGroupSeries(
   transactions: ReportTransaction[],
@@ -173,7 +207,7 @@ export function buildGroupSeries(
   return { groups, rows: out };
 }
 
-export type BreakdownItem = { group: string; category: string; value: number };
+export type BreakdownItem = { id?: number; group: string; category: string; value: number };
 
 /** Total per category (with its group) for income or expense, largest first. */
 export function buildBreakdown(
@@ -185,7 +219,12 @@ export function buildBreakdown(
     const value = budgetImpact(tx)[kind];
     if (value === 0) continue;
     const key = `${tx.category.group.name}\u0000${tx.category.name}`;
-    const item = map.get(key) ?? { group: tx.category.group.name, category: tx.category.name, value: 0 };
+    const item = map.get(key) ?? {
+      id: tx.category.id,
+      group: tx.category.group.name,
+      category: tx.category.name,
+      value: 0,
+    };
     item.value += value;
     map.set(key, item);
   }

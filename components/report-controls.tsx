@@ -6,18 +6,36 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { CategoryOption } from "@/components/category-select";
+import { ChevronDownIcon } from "lucide-react";
 import type { Show } from "@/components/charts/income-expense-chart";
 import type { Period } from "@/lib/report-math";
 
-export type ReportParams = { period: Period; show: Show; from: string; to: string };
+export type ReportParams = { period: Period; show: Show; from: string; to: string; categories?: string[] };
 
-export function ReportControls({ initial }: { initial: ReportParams & { custom: boolean } }) {
+export function ReportControls({
+  initial,
+  categories,
+}: {
+  initial: ReportParams & { custom: boolean; categories: string[] };
+  categories: CategoryOption[];
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const [from, setFrom] = useState(initial.custom ? initial.from : "");
   const [to, setTo] = useState(initial.custom ? initial.to : "");
+  const [selectedCategories, setSelectedCategories] = useState(initial.categories);
+  const [categoryOpen, setCategoryOpen] = useState(false);
 
-  function go(next: Partial<ReportParams> & { from?: string; to?: string }) {
+  function go(next: Partial<ReportParams> & { from?: string; to?: string; categories?: string[] }) {
     const params = new URLSearchParams();
     params.set("period", next.period ?? initial.period);
     params.set("show", next.show ?? initial.show);
@@ -25,6 +43,8 @@ export function ReportControls({ initial }: { initial: ReportParams & { custom: 
     const t = next.to ?? to;
     if (f) params.set("from", f);
     if (t) params.set("to", t);
+    const selected = next.categories ?? selectedCategories;
+    if (selected.length > 0) params.set("categories", selected.join(","));
     router.push(`${pathname}?${params}`);
   }
 
@@ -49,6 +69,50 @@ export function ReportControls({ initial }: { initial: ReportParams & { custom: 
             <TabsTrigger value="expense">Expense</TabsTrigger>
           </TabsList>
         </Tabs>
+      </div>
+      <div className="grid gap-1.5">
+        <Label className="text-xs text-muted-foreground">Trend categories</Label>
+        <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="justify-between font-normal">
+              <span className="max-w-52 truncate">
+                {selectedCategories.length === 0
+                  ? "Select categories"
+                  : `${selectedCategories.length} selected`}
+              </span>
+              <ChevronDownIcon className="size-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-72 p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Search categories..." />
+              <CommandList>
+                <CommandEmpty>No matching category.</CommandEmpty>
+                {categories.map((category) => {
+                  const id = String(category.id);
+                  const checked = selectedCategories.includes(id);
+                  return (
+                    <CommandItem
+                      key={category.id}
+                      value={`${category.name} ${category.groupName}`}
+                      onSelect={() => {
+                        const next = checked
+                          ? selectedCategories.filter((value) => value !== id)
+                          : [...selectedCategories, id];
+                        setSelectedCategories(next);
+                        go({ categories: next });
+                      }}
+                    >
+                      <span className="mr-2">{checked ? "✓" : ""}</span>
+                      {category.name}
+                      <span className="ml-auto text-xs text-muted-foreground">{category.groupName}</span>
+                    </CommandItem>
+                  );
+                })}
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       </div>
       <form
         className="flex flex-wrap items-end gap-2"

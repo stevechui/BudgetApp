@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowLeftIcon } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Button } from "@/components/ui/button";
@@ -8,20 +9,31 @@ import type { BreakdownItem } from "@/lib/report-math";
 import { colorAt, formatDollars } from "./palette";
 
 /** Pie of totals by category group; click a slice to see the categories inside it. */
-export function BreakdownPie({ items, height = 300 }: { items: BreakdownItem[]; height?: number }) {
+export function BreakdownPie({
+  items,
+  from,
+  to,
+  height = 300,
+}: {
+  items: BreakdownItem[];
+  from: string;
+  to: string;
+  height?: number;
+}) {
+  const router = useRouter();
   const [group, setGroup] = useState<string | null>(null);
 
   const slices = useMemo(() => {
     if (group) {
       return items
         .filter((i) => i.group === group)
-        .map((i) => ({ name: i.category, value: i.value / 100 }));
+        .map((i) => ({ name: i.category, value: i.value / 100, id: i.id }));
     }
     const totals = new Map<string, number>();
     for (const i of items) totals.set(i.group, (totals.get(i.group) ?? 0) + i.value);
     return [...totals.entries()]
       .sort((a, b) => b[1] - a[1])
-      .map(([name, value]) => ({ name, value: value / 100 }));
+      .map(([name, value]) => ({ name, value: value / 100, id: undefined }));
   }, [items, group]);
 
   const total = slices.reduce((sum, s) => sum + s.value, 0);
@@ -55,7 +67,10 @@ export function BreakdownPie({ items, height = 300 }: { items: BreakdownItem[]; 
               outerRadius="85%"
               paddingAngle={1}
               onClick={(_, index) => {
-                if (!group) setGroup(slices[index]?.name ?? null);
+                const slice = slices[index];
+                if (!slice) return;
+                if (!group) setGroup(slice.name);
+                else if (slice.id) router.push(`/transactions?category=${slice.id}&from=${from}&to=${to}`);
               }}
               className={group ? undefined : "cursor-pointer"}
             >
@@ -72,8 +87,11 @@ export function BreakdownPie({ items, height = 300 }: { items: BreakdownItem[]; 
           <li key={s.name}>
             <button
               type="button"
-              disabled={!!group}
-              onClick={() => setGroup(s.name)}
+              onClick={() => {
+                const slice = slices.find((item) => item.name === s.name);
+                if (!group) setGroup(s.name);
+                else if (slice?.id) router.push(`/transactions?category=${slice.id}&from=${from}&to=${to}`);
+              }}
               className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left enabled:hover:bg-muted"
             >
               <span className="size-3 shrink-0 rounded-sm" style={{ background: colorAt(i) }} />
