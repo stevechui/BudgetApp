@@ -44,7 +44,11 @@ export function ReportControls({
     if (f) params.set("from", f);
     if (t) params.set("to", t);
     const selected = next.categories ?? selectedCategories;
-    if (selected.length > 0) params.set("categories", selected.join(","));
+    if (selected.length === 0) {
+      params.set("categories", "none");
+    } else if (selected.length !== categories.length) {
+      params.set("categories", selected.join(","));
+    }
     router.push(`${pathname}?${params}`);
   }
 
@@ -71,13 +75,15 @@ export function ReportControls({
         </Tabs>
       </div>
       <div className="grid gap-1.5">
-        <Label className="text-xs text-muted-foreground">Trend categories</Label>
+        <Label className="text-xs text-muted-foreground">Categories</Label>
         <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" className="justify-between font-normal">
               <span className="max-w-52 truncate">
                 {selectedCategories.length === 0
-                  ? "Select categories"
+                  ? "No categories"
+                  : selectedCategories.length === categories.length
+                    ? "All categories"
                   : `${selectedCategories.length} selected`}
               </span>
               <ChevronDownIcon className="size-4" />
@@ -88,6 +94,33 @@ export function ReportControls({
               <CommandInput placeholder="Search categories..." />
               <CommandList>
                 <CommandEmpty>No matching category.</CommandEmpty>
+                <div className="flex gap-2 border-b p-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 flex-1"
+                    onClick={() => {
+                      const next = categories.map((category) => String(category.id));
+                      setSelectedCategories(next);
+                      go({ categories: next });
+                    }}
+                  >
+                    All
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 flex-1"
+                    onClick={() => {
+                      setSelectedCategories([]);
+                      go({ categories: [] });
+                    }}
+                  >
+                    None
+                  </Button>
+                </div>
                 {categories.map((category) => {
                   const id = String(category.id);
                   const checked = selectedCategories.includes(id);

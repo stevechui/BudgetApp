@@ -49,24 +49,31 @@ async function ReportsContent({ searchParams }: Pick<PageProps<"/reports">, "sea
   const fromParam = typeof sp.from === "string" && DAY.test(sp.from) ? sp.from : undefined;
   const toParam = typeof sp.to === "string" && DAY.test(sp.to) ? sp.to : undefined;
   const categoryParam = typeof sp.categories === "string" ? sp.categories : "";
-  const categoryIds = categoryParam.split(",").map(Number).filter((id) => Number.isInteger(id) && id > 0);
+  const categories = await getCategories();
+  const allCategoryIds = categories.map((category) => category.id);
+  const categoryIds =
+    categoryParam === "none"
+      ? []
+      : categoryParam
+        ? categoryParam
+            .split(",")
+            .map(Number)
+            .filter((id) => allCategoryIds.includes(id))
+        : undefined;
 
   const defaults = defaultRange(period, toParam ? parseDay(toParam) : new Date());
   const from = fromParam ? parseDay(fromParam) : defaults.from;
   const to = toParam ? parseDay(toParam) : defaults.to;
 
   const breakdownKind = show === "income" ? "income" : "expense";
-  const [data, categories] = await Promise.all([
-    getSeries({
-      period,
-      from,
-      to,
-      groupBy: "group",
-      groupKind: breakdownKind,
-      categoryIds,
-    }),
-    getCategories(),
-  ]);
+  const data = await getSeries({
+    period,
+    from,
+    to,
+    groupBy: "group",
+    groupKind: breakdownKind,
+    categoryIds,
+  });
   const averages = averagePerPeriod(data.series);
   const rangeLabel = `${format(from, "MMM d, yyyy")} – ${format(to, "MMM d, yyyy")}`;
 
@@ -80,9 +87,9 @@ async function ReportsContent({ searchParams }: Pick<PageProps<"/reports">, "sea
           from: format(from, "yyyy-MM-dd"),
           to: format(to, "yyyy-MM-dd"),
           custom: Boolean(fromParam || toParam),
-          categories: categoryIds.map(String),
+          categories: (categoryIds ?? allCategoryIds).map(String),
         }}
-        categories={categories.filter((category) => category.type === "DEBIT").map((category) => ({
+        categories={categories.map((category) => ({
           id: category.id,
           name: category.name,
           type: category.type,

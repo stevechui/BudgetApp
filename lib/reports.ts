@@ -37,7 +37,7 @@ export async function getSeries({
   to,
   groupBy = "none",
   groupKind = "expense",
-  categoryIds = [],
+  categoryIds,
 }: {
   period: Period;
   from: Date;
@@ -48,19 +48,26 @@ export async function getSeries({
   categoryIds?: number[];
 }) {
   const transactions = await getReportTransactions(from, to);
+  const filteredTransactions =
+    categoryIds === undefined
+      ? transactions
+      : transactions.filter((transaction) => {
+          const id = transaction.category.id;
+          return id !== undefined && categoryIds.includes(id);
+        });
   const range = { period, from, to };
   return {
-    totals: totals(transactions),
-    series: buildSeries(transactions, range),
+    totals: totals(filteredTransactions),
+    series: buildSeries(filteredTransactions, range),
     groupSeries:
       groupBy === "group"
-        ? buildGroupSeries(transactions, { ...range, kind: groupKind })
+        ? buildGroupSeries(filteredTransactions, { ...range, kind: groupKind })
         : undefined,
-    expenseBreakdown: buildBreakdown(transactions, "expense"),
-    incomeBreakdown: buildBreakdown(transactions, "income"),
+    expenseBreakdown: buildBreakdown(filteredTransactions, "expense"),
+    incomeBreakdown: buildBreakdown(filteredTransactions, "income"),
     categorySeries:
-      categoryIds.length > 0
-        ? buildCategorySeries(transactions, { period, from, to }, categoryIds)
+      categoryIds && categoryIds.length > 0
+        ? buildCategorySeries(filteredTransactions, { period, from, to }, categoryIds)
         : undefined,
   };
 }
